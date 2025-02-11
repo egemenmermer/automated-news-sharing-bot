@@ -32,60 +32,24 @@ public class GeminiServiceImpl implements GeminiService {
     
     @Override
     public String summarizeNews(String newsTitle, String newsContent) {
-        // Creates concise summaries of news articles
-        String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
-
-        Map<String, Object> requestBody = new HashMap<>();
-        List<Map<String, Object>> contents = new ArrayList<>();
-        Map<String, Object> content = new HashMap<>();
-        content.put("text", "Summarize this news in one or two sentences: " + newsTitle + " - " + newsContent);
-        contents.add(content);
-        requestBody.put("contents", Collections.singletonList(Map.of("parts", contents)));
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_ENDPOINT, entity, Map.class);
-
-        if (response.getBody() != null && response.getBody().containsKey("candidates")) {
-            List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
-            if (!candidates.isEmpty()) {
-                Map<String, Object> contentResponse = (Map<String, Object>) candidates.get(0).get("content");
-                List<Map<String, Object>> parts = (List<Map<String, Object>>) contentResponse.get("parts");
-                return parts.get(0).get("text").toString();
-            }
+        try {
+            String prompt = "Summarize this news in one or two sentences: " + newsTitle + " - " + newsContent;
+            return generateResponse(prompt);
+        } catch (Exception e) {
+            log.error("Error summarizing news: {}", e.getMessage());
+            return "Error summarizing news";
         }
-        return "Error generating summary.";
     }
 
     @Override
     public String generateTweet(String newsSummary) {
-        // Generates social media-friendly tweets
-        String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
-
-        Map<String, Object> requestBody = new HashMap<>();
-        List<Map<String, Object>> contents = new ArrayList<>();
-        Map<String, Object> content = new HashMap<>();
-        content.put("text", "Generate a short, engaging tweet (maximum 280 characters) about this news: " + newsSummary);
-        contents.add(content);
-        requestBody.put("contents", Collections.singletonList(Map.of("parts", contents)));
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_ENDPOINT, entity, Map.class);
-
-        if (response.getBody() != null && response.getBody().containsKey("candidates")) {
-            List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
-            if (!candidates.isEmpty()) {
-                Map<String, Object> contentResponse = (Map<String, Object>) candidates.get(0).get("content");
-                List<Map<String, Object>> parts = (List<Map<String, Object>>) contentResponse.get("parts");
-                return parts.get(0).get("text").toString();
-            }
+        try {
+            String prompt = "Generate a short, engaging tweet (maximum 280 characters) about this news: " + newsSummary;
+            return generateResponse(prompt);
+        } catch (Exception e) {
+            log.error("Error generating tweet: {}", e.getMessage());
+            return "Error generating tweet";
         }
-        return "Error generating tweet.";
     }
 
     @Override
@@ -119,8 +83,30 @@ public class GeminiServiceImpl implements GeminiService {
     public String generateResponse(String prompt) {
         try {
             log.info("Generating response for prompt: {}", prompt);
-            // TODO: Implement actual Gemini API call
-            return "Sample response for: " + prompt;
+            String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+
+            Map<String, Object> requestBody = new HashMap<>();
+            List<Map<String, Object>> contents = new ArrayList<>();
+            Map<String, Object> content = new HashMap<>();
+            content.put("text", prompt);
+            contents.add(content);
+            requestBody.put("contents", Collections.singletonList(Map.of("parts", contents)));
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_ENDPOINT, entity, Map.class);
+
+            if (response.getBody() != null && response.getBody().containsKey("candidates")) {
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
+                if (!candidates.isEmpty()) {
+                    Map<String, Object> contentResponse = (Map<String, Object>) candidates.get(0).get("content");
+                    List<Map<String, Object>> parts = (List<Map<String, Object>>) contentResponse.get("parts");
+                    return parts.get(0).get("text").toString();
+                }
+            }
+            return "Error generating response";
         } catch (Exception e) {
             log.error("Error generating response: {}", e.getMessage());
             return "Error generating response";

@@ -9,8 +9,8 @@ CREATE TABLE bots (
     instagram_access_token TEXT,
     pexels_api_key VARCHAR(255),
     mediastack_api_key VARCHAR(255),
-    fetch_time TIME NOT NULL DEFAULT '00:00:00',
-    post_time TIME NOT NULL DEFAULT '00:30:00',
+    fetch_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    post_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '30 minutes',
     last_run TIMESTAMP
 );
 
@@ -36,20 +36,22 @@ CREATE TABLE instagram_posts (
     news_id INT REFERENCES news(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     caption TEXT,
-    post_status VARCHAR(50) NOT NULL CHECK (post_status IN ('PENDING', 'IMAGE_GENERATED', 'POSTED', 'FAILED')),
+    post_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     instagram_post_id TEXT,
     retry_count INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    posted_at TIMESTAMP
+    posted_at TIMESTAMP,
+    CONSTRAINT chk_post_status CHECK (post_status IN ('PENDING', 'IMAGE_GENERATED', 'POSTED', 'FAILED'))
 );
 
 -- Create bot_logs table
 CREATE TABLE bot_logs (
     id SERIAL PRIMARY KEY,
     bot_id INT REFERENCES bots(id) ON DELETE CASCADE,
-    log_type VARCHAR(50) NOT NULL CHECK (log_type IN ('INFO', 'WARNING', 'ERROR')),
+    log_type VARCHAR(50) NOT NULL,
     log_message TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_log_type CHECK (log_type IN ('INFO', 'WARNING', 'ERROR'))
 );
 
 -- Create fetch_logs table
@@ -57,9 +59,10 @@ CREATE TABLE fetch_logs (
     id SERIAL PRIMARY KEY,
     bot_id INT REFERENCES bots(id) ON DELETE CASCADE,
     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) NOT NULL CHECK (status IN ('SUCCESS', 'FAILED')),
-    fetched_count INT NOT NULL,
-    log_message TEXT
+    status VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
+    fetched_count INT NOT NULL DEFAULT 0,
+    log_message TEXT,
+    CONSTRAINT chk_fetch_status CHECK (status IN ('SUCCESS', 'FAILED'))
 );
 
 -- Create post_logs table
@@ -69,9 +72,10 @@ CREATE TABLE post_logs (
     post_type VARCHAR(50) DEFAULT 'INSTAGRAM',
     platform VARCHAR(50) DEFAULT 'INSTAGRAM',
     post_id INT,
-    status VARCHAR(50) NOT NULL CHECK (status IN ('SUCCESS', 'FAILED')),
+    status VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
     log_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_post_status CHECK (status IN ('SUCCESS', 'FAILED'))
 );
 
 -- Create indexes

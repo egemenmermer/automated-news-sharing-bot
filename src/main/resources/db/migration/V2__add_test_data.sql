@@ -6,7 +6,9 @@ INSERT INTO bots (
     instagram_username, 
     instagram_password,
     mediastack_api_key,
-    pexels_api_key
+    pexels_api_key,
+    fetch_time,
+    post_time
 ) VALUES (
     'TestBot',
     'test_api_key',
@@ -14,5 +16,7 @@ INSERT INTO bots (
     'test_instagram',
     'test_password',
     'test_mediastack_key',
-    'test_pexels_key'
+    'test_pexels_key',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP + INTERVAL '30 minutes'
 ); 
