@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
+import com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO;
 import com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponse;
 import com.egemen.TweetBotTelegram.dto.instagram.InstagramErrorResponse;
 import com.egemen.TweetBotTelegram.exception.InstagramApiException;
@@ -63,10 +64,10 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
-            ResponseEntity<InstagramMediaResponse> response = restTemplate.postForEntity(
+            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.postForEntity(
                 url, 
                 request, 
-                InstagramMediaResponse.class
+                InstagramMediaResponseDTO.class
             );
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
@@ -106,10 +107,10 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
-            ResponseEntity<InstagramMediaResponse> response = restTemplate.postForEntity(
+            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.postForEntity(
                 url,
                 request,
-                InstagramMediaResponse.class
+                InstagramMediaResponseDTO.class
             );
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
@@ -132,9 +133,9 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         try {
             String url = apiUrl + "/media/" + containerId;
             
-            ResponseEntity<InstagramMediaResponse> response = restTemplate.getForEntity(
+            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.getForEntity(
                 url + "?access_token={token}",
-                InstagramMediaResponse.class,
+                InstagramMediaResponseDTO.class,
                 accessToken
             );
 
