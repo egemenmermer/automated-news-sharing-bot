@@ -1,7 +1,5 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO;
-import com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponse;
 import com.egemen.TweetBotTelegram.dto.instagram.InstagramErrorResponse;
 import com.egemen.TweetBotTelegram.exception.InstagramApiException;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
@@ -64,10 +62,10 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
-            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.postForEntity(
+            ResponseEntity<com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO> response = restTemplate.postForEntity(
                 url, 
                 request, 
-                InstagramMediaResponseDTO.class
+                com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO.class
             );
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
@@ -107,10 +105,10 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
-            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.postForEntity(
+            ResponseEntity<com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO> response = restTemplate.postForEntity(
                 url,
                 request,
-                InstagramMediaResponseDTO.class
+                com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO.class
             );
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
@@ -133,9 +131,9 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         try {
             String url = apiUrl + "/media/" + containerId;
             
-            ResponseEntity<InstagramMediaResponseDTO> response = restTemplate.getForEntity(
+            ResponseEntity<com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO> response = restTemplate.getForEntity(
                 url + "?access_token={token}",
-                InstagramMediaResponseDTO.class,
+                com.egemen.TweetBotTelegram.dto.instagram.InstagramMediaResponseDTO.class,
                 accessToken
             );
 

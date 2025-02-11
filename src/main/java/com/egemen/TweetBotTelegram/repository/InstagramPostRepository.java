@@ -11,7 +11,7 @@ import java.util.List;
 @Repository
 public interface InstagramPostRepository extends JpaRepository<InstagramPost, Long> {
     List<InstagramPost> findByStatus(PostStatus status);
-    List<InstagramPost> findByStatusOrderByCreatedAtAsc(PostStatus status);
+    List<InstagramPost> findByStatusAndRetryCountLessThan(PostStatus status, int maxRetries);
     List<InstagramPost> findByNewsId(Long newsId);
     @Query("SELECT p FROM InstagramPost p WHERE p.status = :status AND p.retryCount < :maxRetries")
     List<InstagramPost> findRetryablePosts(@Param("status") PostStatus status, @Param("maxRetries") int maxRetries);

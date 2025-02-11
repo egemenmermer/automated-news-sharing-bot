@@ -1,25 +1,23 @@
-# Environment files
+# Environment variables
 .env
-*.env
-.env.local
 .env.*
+!.env.example
 
 # IDE files
 .idea/
 *.iml
 .vscode/
 
-# Build output
+# Build files
 target/
 build/
 out/
-.mvn/wrapper/
 
 # Logs
 *.log
 logs/
 
-# OS files
+# Other
 .DS_Store
 Thumbs.db
 

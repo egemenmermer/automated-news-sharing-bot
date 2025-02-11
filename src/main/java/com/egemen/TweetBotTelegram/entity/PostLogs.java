@@ -1,13 +1,13 @@
 package com.egemen.TweetBotTelegram.entity;
 
 import com.egemen.TweetBotTelegram.enums.PostStatus;
-import com.egemen.TweetBotTelegram.enums.TweetStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Entity
 @Data
@@ -30,9 +30,12 @@ public class PostLogs {
     private Timestamp postedAt;
 
     @Column(nullable = false, name = "status")
+    @Enumerated(EnumType.STRING)
     private PostStatus status;
 
     @Column(name = "log_message")
     private String logMessage;
 
+    private LocalDateTime createdAt;
+    private String message;
 }

@@ -5,11 +5,11 @@ import java.io.InputStream;
 public interface S3Service {
     /**
      * Uploads an image to S3 and returns its public URL
-     * @param imageData The image data as InputStream
+     * @param inputStream The image data as InputStream
      * @param fileName Optional filename (will generate if null)
      * @return Public URL of the uploaded image
      */
-    String uploadImage(InputStream imageData, String fileName);
+    String uploadImage(InputStream inputStream, String fileName);
 
     /**
      * Deletes an image from S3

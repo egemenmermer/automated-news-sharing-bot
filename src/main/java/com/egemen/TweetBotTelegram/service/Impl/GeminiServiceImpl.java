@@ -78,4 +78,9 @@ public class GeminiServiceImpl implements GeminiService {
         }
         return "Error generating tweet.";
     }
+
+    @Override
+    public String generateSummary(String title, String content) {
+        return summarizeNews(title, content);
+    }
 }

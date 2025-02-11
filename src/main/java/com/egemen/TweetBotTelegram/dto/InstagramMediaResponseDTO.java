@@ -1,4 +1,4 @@
-package com.egemen.TweetBotTelegram.dto;
+package com.egemen.TweetBotTelegram.dto.instagram;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
@@ -14,6 +14,7 @@ public class InstagramMediaResponseDTO {
     
     @JsonProperty("error_message")
     private String errorMessage;
+
 
     public String getId() {
         return id;

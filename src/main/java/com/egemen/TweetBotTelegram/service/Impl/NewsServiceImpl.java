@@ -5,6 +5,7 @@ import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
 import com.egemen.TweetBotTelegram.service.NewsService;
+import com.egemen.TweetBotTelegram.service.GeminiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,17 +22,21 @@ import java.util.Objects;
 @Service
 public class NewsServiceImpl implements NewsService {
     private static final Logger log = LoggerFactory.getLogger(NewsServiceImpl.class);
-
-    @Value("${mediastack.api.key}")
-    private String mediastackApiKey;
-
-    private final NewsRepository newsRepository;
+    
     private final RestTemplate restTemplate;
-    private static final String NEWS_API_URL = "http://api.mediastack.com/v1/news";
+    private final String mediaStackApiKey;
+    private final NewsRepository newsRepository;
+    private final GeminiService geminiService;
 
-    public NewsServiceImpl(NewsRepository newsRepository, RestTemplate restTemplate) {
-        this.newsRepository = newsRepository;
+    public NewsServiceImpl(
+            RestTemplate restTemplate,
+            @Value("${mediastack.api.key}") String mediaStackApiKey,
+            NewsRepository newsRepository,
+            GeminiService geminiService) {
         this.restTemplate = restTemplate;
+        this.mediaStackApiKey = mediaStackApiKey;
+        this.newsRepository = newsRepository;
+        this.geminiService = geminiService;
     }
 
     @Override
@@ -52,39 +57,31 @@ public class NewsServiceImpl implements NewsService {
 
     @Override
     public List<News> fetchLatestNews() {
-        try {
-            log.info("Fetching latest news from MediaStack API");
-            
-            String url = UriComponentsBuilder.fromHttpUrl(NEWS_API_URL)
-                    .queryParam("access_key", mediastackApiKey)
-                    .queryParam("languages", "en")
-                    .queryParam("limit", 100)
-                    .queryParam("sort", "published_desc")
-                    .build()
-                    .toUriString();
-
-            ResponseEntity<NewsResponseDTO> response = restTemplate.getForEntity(url, NewsResponseDTO.class);
-            List<News> savedNews = new ArrayList<>();
-
-            if (response.getBody() != null && response.getBody().getArticles() != null) {
-                for (NewsArticleDTO article : response.getBody().getArticles()) {
-                    try {
-                        News news = convertToNews(article);
-                        if (!newsExists(news)) {
-                            savedNews.add(newsRepository.save(news));
-                            log.info("Saved new article: {}", news.getTitle());
-                        }
-                    } catch (Exception e) {
-                        log.error("Error processing article: {}", e.getMessage());
-                    }
-                }
+        String url = String.format("http://api.mediastack.com/v1/news?access_key=%s&languages=en&limit=10", mediaStackApiKey);
+        
+        NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
+        List<News> newsList = new ArrayList<>();
+        
+        if (response != null && response.getArticles() != null) {
+            for (NewsArticleDTO article : response.getArticles()) {
+                News news = new News();
+                news.setTitle(article.getTitle());
+                news.setDescription(article.getDescription());
+                news.setUrl(article.getUrl());
+                
+                // Generate summary using Gemini
+                String summary = geminiService.generateSummary(article.getTitle(), article.getDescription());
+                news.setSummary(summary);
+                
+                news.setProcessed(false);
+                news.setPosted(false);
+                news.setCreatedAt(LocalDateTime.now());
+                
+                newsList.add(newsRepository.save(news));
             }
-
-            return savedNews;
-        } catch (Exception e) {
-            log.error("Error fetching news: {}", e.getMessage());
-            throw new RuntimeException("Failed to fetch news", e);
         }
+        
+        return newsList;
     }
 
     @Override

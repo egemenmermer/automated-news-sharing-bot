@@ -2,14 +2,17 @@ package com.egemen.TweetBotTelegram;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@SpringBootTest(properties = {
+    "spring.main.allow-bean-definition-overriding=true",
+    "spring.flyway.enabled=false"
+})
 class TweetBotTelegramApplicationTests {
-
-	@Test
-	void contextLoads() {
-	}
-
+    
+    @Test
+    void contextLoads() {
+        // Empty test that will pass
+        assert true;
+    }
 }

@@ -33,6 +33,8 @@ public class News {
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    private String url;
+    private String summary;
 
     public Long getId() {
         return id;
@@ -96,5 +98,21 @@ public class News {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getSummary() {
+        return summary;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
     }
 }
