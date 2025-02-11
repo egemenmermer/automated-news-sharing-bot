@@ -66,8 +66,8 @@ public class NewsServiceImpl implements NewsService {
             ResponseEntity<NewsResponseDTO> response = restTemplate.getForEntity(url, NewsResponseDTO.class);
             List<News> savedNews = new ArrayList<>();
 
-            if (response.getBody() != null && response.getBody().getData() != null) {
-                for (NewsArticleDTO article : response.getBody().getData()) {
+            if (response.getBody() != null && response.getBody().getArticles() != null) {
+                for (NewsArticleDTO article : response.getBody().getArticles()) {
                     try {
                         News news = convertToNews(article);
                         if (!newsExists(news)) {

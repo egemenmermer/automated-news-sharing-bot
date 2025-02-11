@@ -1,5 +1,8 @@
 package com.egemen.TweetBotTelegram.scheduler;
 
+import com.egemen.TweetBotTelegram.entity.InstagramPost;
+import com.egemen.TweetBotTelegram.enums.PostStatus;
+import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.ImageService;
 import com.egemen.TweetBotTelegram.service.InstagramService;
