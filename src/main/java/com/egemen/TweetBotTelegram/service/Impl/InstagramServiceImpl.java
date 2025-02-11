@@ -3,6 +3,7 @@ package com.egemen.TweetBotTelegram.service.Impl;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
+import com.egemen.TweetBotTelegram.exception.InstagramApiException;
 import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
 import com.egemen.TweetBotTelegram.service.InstagramService;
@@ -21,6 +22,9 @@ public class InstagramServiceImpl implements InstagramService {
 
     @Value("${instagram.access.token}")
     private String instagramAccessToken;
+
+    @Value("${instagram.max.retries:3}")
+    private int maxRetries;
 
     private final InstagramPostRepository instagramPostRepository;
     private final NewsService newsService;
@@ -51,19 +55,28 @@ public class InstagramServiceImpl implements InstagramService {
     @Override
     public InstagramPost publishPost(Long id) {
         InstagramPost post = getPost(id);
+        
+        if (post.getRetryCount() >= maxRetries) {
+            log.error("Max retry attempts reached for post {}", id);
+            post.setStatus(PostStatus.FAILED);
+            return instagramPostRepository.save(post);
+        }
+
         try {
             // Upload media to Instagram
             String containerId = instagramApiService.uploadMedia(post.getImageUrl());
             
             // Wait for processing
             String status = instagramApiService.getMediaStatus(containerId);
-            while ("IN_PROGRESS".equals(status)) {
+            int attempts = 0;
+            while ("IN_PROGRESS".equals(status) && attempts < 30) {
                 Thread.sleep(1000);
                 status = instagramApiService.getMediaStatus(containerId);
+                attempts++;
             }
             
-            if ("ERROR".equals(status)) {
-                throw new RuntimeException("Media processing failed");
+            if ("ERROR".equals(status) || attempts >= 30) {
+                throw new InstagramApiException("Media processing failed or timeout");
             }
             
             // Publish the post
@@ -73,12 +86,13 @@ public class InstagramServiceImpl implements InstagramService {
             post.setStatus(PostStatus.POSTED);
             post.setPostedAt(LocalDateTime.now());
             return instagramPostRepository.save(post);
+            
         } catch (Exception e) {
             log.error("Error publishing post {}: {}", id, e.getMessage());
             post.setStatus(PostStatus.FAILED);
-            post.incrementRetryCount();
+            post.setRetryCount(post.getRetryCount() + 1);
             instagramPostRepository.save(post);
-            throw new RuntimeException("Failed to publish post", e);
+            throw new InstagramApiException("Failed to publish post", e);
         }
     }
 

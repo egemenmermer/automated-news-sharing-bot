@@ -37,4 +37,24 @@ public class GlobalExceptionHandler {
         response.put("message", e.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
+
+    @ExceptionHandler(InstagramApiException.class)
+    public ResponseEntity<Object> handleInstagramApiException(InstagramApiException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("message", ex.getMessage());
+        body.put("type", "INSTAGRAM_API_ERROR");
+        
+        return new ResponseEntity<>(body, HttpStatus.BAD_GATEWAY);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Object> handleRateLimitExceededException(RateLimitExceededException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("message", ex.getMessage());
+        body.put("type", "RATE_LIMIT_EXCEEDED");
+        
+        return new ResponseEntity<>(body, HttpStatus.TOO_MANY_REQUESTS);
+    }
 }
