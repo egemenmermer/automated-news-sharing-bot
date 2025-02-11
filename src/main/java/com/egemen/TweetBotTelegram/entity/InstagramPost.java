@@ -111,4 +111,8 @@ public class InstagramPost {
     public void setPostedAt(LocalDateTime postedAt) {
         this.postedAt = postedAt;
     }
+
+    public void incrementRetryCount() {
+        this.retryCount = (this.retryCount == null ? 0 : this.retryCount) + 1;
+    }
 }

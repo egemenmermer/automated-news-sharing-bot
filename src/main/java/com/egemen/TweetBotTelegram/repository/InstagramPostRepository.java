@@ -3,6 +3,8 @@ package com.egemen.TweetBotTelegram.repository;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.param.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 
@@ -11,4 +13,6 @@ public interface InstagramPostRepository extends JpaRepository<InstagramPost, Lo
     List<InstagramPost> findByStatus(PostStatus status);
     List<InstagramPost> findByStatusOrderByCreatedAtAsc(PostStatus status);
     List<InstagramPost> findByNewsId(Long newsId);
+    @Query("SELECT p FROM InstagramPost p WHERE p.status = :status AND p.retryCount < :maxRetries")
+    List<InstagramPost> findRetryablePosts(@Param("status") PostStatus status, @Param("maxRetries") int maxRetries);
 }

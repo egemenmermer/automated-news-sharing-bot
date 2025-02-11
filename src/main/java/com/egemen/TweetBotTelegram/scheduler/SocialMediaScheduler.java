@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import java.util.List;
 
 @Component
 public class SocialMediaScheduler {
@@ -15,14 +16,20 @@ public class SocialMediaScheduler {
     private final NewsService newsService;
     private final ImageService imageService;
     private final InstagramService instagramService;
+    private final InstagramPostRepository instagramPostRepository;
+    private final int maxRetries;
 
     public SocialMediaScheduler(
             NewsService newsService,
             ImageService imageService,
-            InstagramService instagramService) {
+            InstagramService instagramService,
+            InstagramPostRepository instagramPostRepository,
+            int maxRetries) {
         this.newsService = newsService;
         this.imageService = imageService;
         this.instagramService = instagramService;
+        this.instagramPostRepository = instagramPostRepository;
+        this.maxRetries = maxRetries;
     }
 
     @Scheduled(fixedRateString = "${app.scheduler.fetch-news-rate:300000}")
@@ -52,5 +59,11 @@ public class SocialMediaScheduler {
         } catch (Exception e) {
             log.error("Error in scheduleInstagramPosts: {}", e.getMessage());
         }
+    }
+
+    @Scheduled(fixedDelayString = "${app.scheduler.retry-delay:300000}")
+    public void retryFailedPosts() {
+        List<InstagramPost> failedPosts = instagramPostRepository.findRetryablePosts(PostStatus.FAILED, maxRetries);
+        // Process failed posts
     }
 }

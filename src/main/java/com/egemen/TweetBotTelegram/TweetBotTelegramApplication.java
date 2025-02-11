@@ -9,9 +9,11 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.context.annotation.Primary;
+import org.springframework.retry.annotation.EnableRetry;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableRetry
 public class TweetBotTelegramApplication {
 
 	public static void main(String[] args) {
