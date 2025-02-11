@@ -1,36 +1,65 @@
 package com.egemen.TweetBotTelegram.dto;
 
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-
 
 public class NewsResponseDTO {
-    private List<NewsArticleDTO> articles;
-    private String status;
-    private int totalResults;
+    private List<NewsArticleDTO> data;
+    private Pagination pagination;
 
-    public List<NewsArticleDTO> getArticles() {
-        return articles;
+    // Getters and Setters
+    public List<NewsArticleDTO> getData() {
+        return data;
     }
 
-    public void setArticles(List<NewsArticleDTO> articles) {
-        this.articles = articles;
+    public void setData(List<NewsArticleDTO> data) {
+        this.data = data;
     }
 
-    public String getStatus() {
-        return status;
+    public Pagination getPagination() {
+        return pagination;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setPagination(Pagination pagination) {
+        this.pagination = pagination;
     }
 
-    public int getTotalResults() {
-        return totalResults;
-    }
+    public static class Pagination {
+        private int limit;
+        private int offset;
+        private int count;
+        private int total;
 
-    public void setTotalResults(int totalResults) {
-        this.totalResults = totalResults;
+        // Getters and Setters
+        public int getLimit() {
+            return limit;
+        }
+
+        public void setLimit(int limit) {
+            this.limit = limit;
+        }
+
+        public int getOffset() {
+            return offset;
+        }
+
+        public void setOffset(int offset) {
+            this.offset = offset;
+        }
+
+        public int getCount() {
+            return count;
+        }
+
+        public void setCount(int count) {
+            this.count = count;
+        }
+
+        public int getTotal() {
+            return total;
+        }
+
+        public void setTotal(int total) {
+            this.total = total;
+        }
     }
 }

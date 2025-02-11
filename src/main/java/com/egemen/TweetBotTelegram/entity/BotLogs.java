@@ -1,35 +1,40 @@
 package com.egemen.TweetBotTelegram.entity;
 
-import com.egemen.TweetBotTelegram.enums.LogType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Entity
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
 @Table(name = "bot_logs")
 public class BotLogs {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "bot_id", nullable = false)
-    private Bot botId;
+    @Column(name = "bot_id")
+    private Long botId;
 
-    @Column(nullable = false, name = "log_type")
-    private LogType logType;
+    @Column(name = "log_type")
+    private String logType; // Changed from Short to String to match VARCHAR in database
 
-    @Column(nullable = false, name = "log_message")
+    @Column(name = "log_message")
     private String logMessage;
 
-    @Column(nullable = false, name = "created_at")
-    private Timestamp createdAt;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-}
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public Long getBotId() { return botId; }
+    public void setBotId(Long botId) { this.botId = botId; }
+
+    public String getLogType() { return logType; }
+    public void setLogType(String logType) { this.logType = logType; }
+
+    public String getLogMessage() { return logMessage; }
+    public void setLogMessage(String logMessage) { this.logMessage = logMessage; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+} 

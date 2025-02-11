@@ -17,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class SocialMediaScheduler {
+    private static final Logger log = LoggerFactory.getLogger(SocialMediaScheduler.class);
+    
     private final NewsService newsService;
     private final ImageService imageService;
     private final InstagramService instagramService;
@@ -45,13 +47,13 @@ public class SocialMediaScheduler {
     @Scheduled(fixedRateString = "${app.scheduler.fetch-news-rate:300000}")
     public void fetchNews() {
         log.info("Fetching news...");
-        newsService.fetchAndSaveNews();
+        newsService.fetchLatestNews();
     }
 
     @Scheduled(fixedRateString = "${app.scheduler.post-rate:600000}")
     public void postToSocialMedia() {
         log.info("Posting to social media...");
-        instagramService.processAndPostPendingNews();
+        instagramService.publishPendingPosts();
     }
 
     @Scheduled(fixedDelayString = "${app.scheduler.retry-delay:300000}")

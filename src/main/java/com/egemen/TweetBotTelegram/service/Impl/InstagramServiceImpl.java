@@ -117,4 +117,9 @@ public class InstagramServiceImpl implements InstagramService {
                 news.getTitle(),
                 news.getDescription());
     }
+
+    @Override
+    public void publishPendingPosts() {
+        // Implementation of publishPendingPosts
+    }
 }

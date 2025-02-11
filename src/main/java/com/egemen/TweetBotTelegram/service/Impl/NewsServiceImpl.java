@@ -9,15 +9,12 @@ import com.egemen.TweetBotTelegram.service.GeminiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 public class NewsServiceImpl implements NewsService {
@@ -46,7 +43,7 @@ public class NewsServiceImpl implements NewsService {
 
     @Override
     public List<News> getUnprocessedNews() {
-        return newsRepository.findByProcessedFalseAndPostedFalseOrderByCreatedAtDesc();
+        return newsRepository.findByProcessedFalse();
     }
 
     @Override
@@ -56,32 +53,23 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    public List<News> fetchLatestNews() {
-        String url = String.format("http://api.mediastack.com/v1/news?access_key=%s&languages=en&limit=10", mediaStackApiKey);
-        
-        NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
-        List<News> newsList = new ArrayList<>();
-        
-        if (response != null && response.getArticles() != null) {
-            for (NewsArticleDTO article : response.getArticles()) {
-                News news = new News();
-                news.setTitle(article.getTitle());
-                news.setDescription(article.getDescription());
-                news.setUrl(article.getUrl());
-                
-                // Generate summary using Gemini
-                String summary = geminiService.generateSummary(article.getTitle(), article.getDescription());
-                news.setSummary(summary);
-                
-                news.setProcessed(false);
-                news.setPosted(false);
-                news.setCreatedAt(LocalDateTime.now());
-                
-                newsList.add(newsRepository.save(news));
+    public void fetchLatestNews() {
+        try {
+            String url = buildMediaStackUrl();
+            NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
+            
+            if (response != null && response.getData() != null) {
+                List<News> newsList = new ArrayList<>();
+                for (NewsArticleDTO article : response.getData()) {
+                    News news = convertToNews(article);
+                    newsList.add(news);
+                }
+                newsRepository.saveAll(newsList);
+                log.info("Saved {} news articles", newsList.size());
             }
+        } catch (Exception e) {
+            log.error("Error fetching news: {}", e.getMessage());
         }
-        
-        return newsList;
     }
 
     @Override
@@ -98,7 +86,6 @@ public class NewsServiceImpl implements NewsService {
     public News processNewsImage(News news) {
         if (news.getImageUrl() != null && !news.isProcessed()) {
             try {
-                // Mark as processed
                 news.setProcessed(true);
                 return newsRepository.save(news);
             } catch (Exception e) {
@@ -118,19 +105,16 @@ public class NewsServiceImpl implements NewsService {
         return newsRepository.existsByTitleAndDescription(news.getTitle(), news.getDescription());
     }
 
-    private News convertToNews(NewsArticleDTO article) {
-        if (article == null || article.getTitle() == null) {
-            throw new IllegalArgumentException("Invalid article data");
-        }
+    private String buildMediaStackUrl() {
+        return String.format("http://api.mediastack.com/v1/news?access_key=%s&languages=en&limit=10", mediaStackApiKey);
+    }
 
+    private News convertToNews(NewsArticleDTO article) {
         News news = new News();
         news.setTitle(article.getTitle());
-        news.setDescription(article.getDescription());
-        news.setImageUrl(article.getImageUrl());
-        news.setCreatedAt(LocalDateTime.now());
+        news.setContent(article.getDescription());
+        news.setPublishedAt(LocalDateTime.now()); // or parse from article if available
         news.setProcessed(false);
-        news.setPosted(false);
-        
         return news;
     }
 }

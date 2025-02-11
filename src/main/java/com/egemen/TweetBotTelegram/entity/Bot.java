@@ -1,7 +1,7 @@
 package com.egemen.TweetBotTelegram.entity;
 
 import jakarta.persistence.*;
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "bots")
@@ -19,14 +19,29 @@ public class Bot {
     @Column(name = "api_secret")
     private String apiSecret;
 
+    @Column(name = "instagram_username")
+    private String instagramUsername;
+
+    @Column(name = "instagram_password")
+    private String instagramPassword;
+
+    @Column(name = "instagram_access_token")
+    private String instagramAccessToken;
+
+    @Column(name = "pexels_api_key")
+    private String pexelsApiKey;
+
+    @Column(name = "mediastack_api_key")
+    private String mediastackApiKey;
+
     @Column(name = "fetch_time")
-    private Timestamp fetchTime;
+    private LocalDateTime fetchTime;
 
     @Column(name = "post_time")
-    private Timestamp postTime;
+    private LocalDateTime postTime;
 
     @Column(name = "last_run")
-    private Timestamp lastRun;
+    private LocalDateTime lastRun;
 
     // Getters and Setters
     public Long getId() {
@@ -61,27 +76,67 @@ public class Bot {
         this.apiSecret = apiSecret;
     }
 
-    public Timestamp getFetchTime() {
+    public String getInstagramUsername() {
+        return instagramUsername;
+    }
+
+    public void setInstagramUsername(String instagramUsername) {
+        this.instagramUsername = instagramUsername;
+    }
+
+    public String getInstagramPassword() {
+        return instagramPassword;
+    }
+
+    public void setInstagramPassword(String instagramPassword) {
+        this.instagramPassword = instagramPassword;
+    }
+
+    public String getInstagramAccessToken() {
+        return instagramAccessToken;
+    }
+
+    public void setInstagramAccessToken(String instagramAccessToken) {
+        this.instagramAccessToken = instagramAccessToken;
+    }
+
+    public String getPexelsApiKey() {
+        return pexelsApiKey;
+    }
+
+    public void setPexelsApiKey(String pexelsApiKey) {
+        this.pexelsApiKey = pexelsApiKey;
+    }
+
+    public String getMediastackApiKey() {
+        return mediastackApiKey;
+    }
+
+    public void setMediastackApiKey(String mediastackApiKey) {
+        this.mediastackApiKey = mediastackApiKey;
+    }
+
+    public LocalDateTime getFetchTime() {
         return fetchTime;
     }
 
-    public void setFetchTime(Timestamp fetchTime) {
+    public void setFetchTime(LocalDateTime fetchTime) {
         this.fetchTime = fetchTime;
     }
 
-    public Timestamp getPostTime() {
+    public LocalDateTime getPostTime() {
         return postTime;
     }
 
-    public void setPostTime(Timestamp postTime) {
+    public void setPostTime(LocalDateTime postTime) {
         this.postTime = postTime;
     }
 
-    public Timestamp getLastRun() {
+    public LocalDateTime getLastRun() {
         return lastRun;
     }
 
-    public void setLastRun(Timestamp lastRun) {
+    public void setLastRun(LocalDateTime lastRun) {
         this.lastRun = lastRun;
     }
 }

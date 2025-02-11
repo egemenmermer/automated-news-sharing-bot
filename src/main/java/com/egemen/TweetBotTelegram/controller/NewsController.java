@@ -33,8 +33,9 @@ public class NewsController {
     }
 
     @PostMapping("/fetch")
-    public ResponseEntity<List<News>> fetchLatestNews() {
-        return ResponseEntity.ok(newsService.fetchLatestNews());
+    public ResponseEntity<String> fetchNews() {
+        newsService.fetchLatestNews();
+        return ResponseEntity.ok("News fetch initiated");
     }
 
     @DeleteMapping("/{id}")

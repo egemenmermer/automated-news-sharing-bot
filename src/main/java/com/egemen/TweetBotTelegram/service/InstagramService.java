@@ -33,4 +33,6 @@ public interface InstagramService {
      * Delete a post
      */
     void deletePost(Long id);
+
+    void publishPendingPosts();
 }

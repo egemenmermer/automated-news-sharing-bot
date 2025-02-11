@@ -7,7 +7,7 @@ public interface NewsService {
     List<News> getAllNews();
     List<News> getUnprocessedNews();
     News getNews(Long id);
-    List<News> fetchLatestNews();
+    void fetchLatestNews();
     void deleteNews(Long id);
     News save(News news);
     News processNewsImage(News news);

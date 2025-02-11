@@ -1,16 +1,12 @@
 package com.egemen.TweetBotTelegram.dto;
 
-import lombok.Data;
-
-import java.time.ZonedDateTime;
-
-@Data
 public class NewsArticleDTO {
     private String title;
     private String description;
     private String url;
-    private String imageUrl;
-    private ZonedDateTime publishedAt;
+    private String image;
+    private String publishedAt;
+    private String source;
 
     // Getters and Setters
     public String getTitle() {
@@ -37,19 +33,27 @@ public class NewsArticleDTO {
         this.url = url;
     }
 
-    public String getImageUrl() {
-        return imageUrl;
+    public String getImage() {
+        return image;
     }
 
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
+    public void setImage(String image) {
+        this.image = image;
     }
 
-    public ZonedDateTime getPublishedAt() {
+    public String getPublishedAt() {
         return publishedAt;
     }
 
-    public void setPublishedAt(ZonedDateTime publishedAt) {
+    public void setPublishedAt(String publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 } 

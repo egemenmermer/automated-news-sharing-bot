@@ -9,7 +9,7 @@ import java.util.List;
 
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
-    List<News> findByProcessedFalseOrderByCreatedAtDesc();
+    List<News> findByProcessedFalse();
     List<News> findByProcessedFalseAndPostedFalseOrderByCreatedAtDesc();
     List<News> findByCreatedAtAfter(LocalDateTime date);
     boolean existsByTitleAndDescription(String title, String description);
