@@ -16,7 +16,7 @@ public class BotLogs {
     @Column(name = "log_type")
     private String logType; // Changed from Short to String to match VARCHAR in database
 
-    @Column(name = "log_message")
+    @Column(columnDefinition = "TEXT")
     private String logMessage;
 
     @Column(name = "created_at")

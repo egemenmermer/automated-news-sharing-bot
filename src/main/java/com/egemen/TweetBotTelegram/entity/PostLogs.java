@@ -33,9 +33,11 @@ public class PostLogs {
     @Enumerated(EnumType.STRING)
     private PostStatus status;
 
-    @Column(name = "log_message")
+    @Column(columnDefinition = "TEXT")
     private String logMessage;
 
-    private LocalDateTime createdAt;
+    @Column(columnDefinition = "TEXT")
     private String message;
+
+    private LocalDateTime createdAt;
 }

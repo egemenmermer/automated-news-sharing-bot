@@ -19,4 +19,6 @@ INSERT INTO bots (
     'test_pexels_key',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP + INTERVAL '30 minutes'
-); 
+);
+
+

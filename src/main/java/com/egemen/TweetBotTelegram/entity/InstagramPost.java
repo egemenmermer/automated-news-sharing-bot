@@ -17,8 +17,13 @@ public class InstagramPost {
     @JoinColumn(name = "news_id")
     private News news;
 
+    @Column(columnDefinition = "TEXT")
     private String imageUrl;
+
+    @Column(columnDefinition = "TEXT")
     private String caption;
+
+    @Column(columnDefinition = "TEXT")
     private String instagramPostId;
 
     @Enumerated(EnumType.STRING)
@@ -26,6 +31,10 @@ public class InstagramPost {
 
     private Integer retryCount = 0;
     private LocalDateTime postedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "bot_id")
+    private Bot bot;
 
     public void incrementRetryCount() {
         this.retryCount = (this.retryCount == null ? 0 : this.retryCount) + 1;
@@ -94,5 +103,13 @@ public class InstagramPost {
 
     public void setPostedAt(LocalDateTime postedAt) {
         this.postedAt = postedAt;
+    }
+
+    public Bot getBot() {
+        return bot;
+    }
+
+    public void setBot(Bot bot) {
+        this.bot = bot;
     }
 }

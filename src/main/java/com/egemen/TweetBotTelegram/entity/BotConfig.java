@@ -1,6 +1,7 @@
 package com.egemen.TweetBotTelegram.entity;
 
 
+import com.egemen.TweetBotTelegram.enums.ConfigType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -17,24 +17,24 @@ CREATE TABLE bots (
 -- Create news table
 CREATE TABLE news (
     id SERIAL PRIMARY KEY,
-    bot_id INT REFERENCES bots(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
+    bot_id BIGINT REFERENCES bots(id) ON DELETE CASCADE,
+    title TEXT,
     content TEXT,
     description TEXT,
     image_url TEXT,
     generated_image_path TEXT,
     published_at TIMESTAMP NOT NULL,
-    processed BOOLEAN DEFAULT FALSE,
-    posted BOOLEAN DEFAULT FALSE,
+    processed BOOLEAN NOT NULL DEFAULT FALSE,
+    posted BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create instagram_posts table
 CREATE TABLE instagram_posts (
     id SERIAL PRIMARY KEY,
-    bot_id INT REFERENCES bots(id) ON DELETE CASCADE,
-    news_id INT REFERENCES news(id) ON DELETE CASCADE,
-    image_url TEXT NOT NULL,
+    bot_id BIGINT REFERENCES bots(id) ON DELETE CASCADE,
+    news_id BIGINT REFERENCES news(id) ON DELETE CASCADE,
+    image_url TEXT,
     caption TEXT,
     post_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     instagram_post_id TEXT,
