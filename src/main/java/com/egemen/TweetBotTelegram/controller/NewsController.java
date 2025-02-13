@@ -19,7 +19,7 @@ public class NewsController {
 
     @GetMapping
     public ResponseEntity<List<News>> getAllNews() {
-        return ResponseEntity.ok(newsService.getAllNews());
+        return ResponseEntity.ok(newsService.fetchNews());
     }
 
     @GetMapping("/unprocessed")
@@ -34,7 +34,7 @@ public class NewsController {
 
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchNews() {
-        newsService.fetchLatestNews();
+        newsService.fetchNews();
         return ResponseEntity.ok("News fetch initiated");
     }
 

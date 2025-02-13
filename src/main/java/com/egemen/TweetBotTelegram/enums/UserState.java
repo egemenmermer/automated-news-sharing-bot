@@ -1,0 +1,12 @@
+package com.egemen.TweetBotTelegram.enums;
+
+public enum UserState {
+
+
+    NONE,
+    AWAITING_LOGIN_USERNAME,
+    AWAITING_LOGIN_PASSWORD,
+    AWAITING_REGISTER_USERNAME,
+    AWAITING_REGISTER_PASSWORD,
+    AWAITING_REGISTER_EMAIL
+}

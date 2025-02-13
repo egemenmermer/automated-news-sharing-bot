@@ -14,7 +14,9 @@ import com.egemen.TweetBotTelegram.enums.PostStatus;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 
+@Slf4j
 @Component
 public class SocialMediaScheduler {
     private static final Logger log = LoggerFactory.getLogger(SocialMediaScheduler.class);
@@ -38,7 +40,7 @@ public class SocialMediaScheduler {
             InstagramService instagramService,
             BotService botService,
             InstagramPostRepository instagramPostRepository,
-            @Value("${app.max-retries:3}") int maxRetries) {
+            @Value("${app.scheduler.max-retries:3}") int maxRetries) {
         this.newsService = newsService;
         this.imageService = imageService;
         this.instagramService = instagramService;
@@ -47,13 +49,13 @@ public class SocialMediaScheduler {
         this.maxRetries = maxRetries;
     }
 
-    @Scheduled(fixedRateString = "${app.scheduler.fetch-news-rate:300000}")
+    @Scheduled(fixedDelayString = "${app.scheduler.fetch-delay:3600000}")
     public void fetchNews() {
         log.info("Fetching news...");
-        newsService.fetchLatestNews();
+        newsService.fetchNews();
     }
 
-    @Scheduled(fixedRateString = "${app.scheduler.post-rate:600000}")
+    @Scheduled(fixedDelayString = "${app.scheduler.post-delay:1800000}")
     public void postToSocialMedia() {
         log.info("Posting to social media...");
         instagramService.publishPendingPosts();
@@ -61,7 +63,7 @@ public class SocialMediaScheduler {
 
     @Scheduled(fixedDelayString = "${app.scheduler.retry-delay:300000}")
     public void retryFailedPosts() {
-        List<InstagramPost> failedPosts = instagramPostRepository.findRetryablePosts(PostStatus.FAILED, maxRetries);
-        
+        log.info("Retrying failed posts...");
+        instagramService.publishPendingPosts();
     }
 }

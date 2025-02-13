@@ -136,11 +136,25 @@ public class InstagramServiceImpl implements InstagramService {
     private String generateCaption(News news) {
         return String.format("📰 %s\n\n%s\n\n#news #update #breaking",
                 news.getTitle(),
-                news.getDescription());
+                news.getContent());
     }
 
     @Override
     public void publishPendingPosts() {
         // Implementation of publishPendingPosts
+    }
+
+    @Override
+    public void createPost(String title, String caption, String imageUrl) {
+        try {
+            log.info("Creating Instagram post for: {}", title);
+            // TODO: Implement actual Instagram API call
+            // For now, just log the attempt
+            log.info("Would post to Instagram: Title={}, Caption={}, Image={}", 
+                    title, caption, imageUrl);
+        } catch (Exception e) {
+            log.error("Error creating Instagram post: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create Instagram post", e);
+        }
     }
 }

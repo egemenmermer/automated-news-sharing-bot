@@ -8,6 +8,7 @@ import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.TelegramService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -19,28 +20,61 @@ import java.util.List;
 @Service
 @Slf4j
 public class NewsServiceImpl implements NewsService {
+
     private final RestTemplate restTemplate;
     private final String mediaStackApiKey;
     private final NewsRepository newsRepository;
     private final GeminiService geminiService;
-    private final TelegramService telegramService;
+    private TelegramService telegramService;
 
     public NewsServiceImpl(
             RestTemplate restTemplate,
             @Value("${mediastack.api.key}") String mediaStackApiKey,
             NewsRepository newsRepository,
-            GeminiService geminiService,
-            TelegramService telegramService) {
+            GeminiService geminiService) {
         this.restTemplate = restTemplate;
         this.mediaStackApiKey = mediaStackApiKey;
         this.newsRepository = newsRepository;
         this.geminiService = geminiService;
+    }
+
+    @Autowired
+    public void setTelegramService(TelegramService telegramService) {
         this.telegramService = telegramService;
     }
 
     @Override
-    public List<News> getAllNews() {
-        return newsRepository.findAll();
+    public List<News> fetchNews() {
+        try {
+            String url = buildMediaStackUrl();
+            NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
+            
+            if (response != null && response.getData() != null) {
+                List<News> newsList = new ArrayList<>();
+                for (NewsArticleDTO article : response.getData()) {
+                    News news = convertToNews(article);
+                    if (!newsExists(news)) {
+                        newsList.add(news);
+                    }
+                }
+                log.info("Fetched {} new articles", newsList.size());
+                return newsRepository.saveAll(newsList);
+            }
+            return new ArrayList<>();
+        } catch (Exception e) {
+            log.error("Error fetching news: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch news", e);
+        }
+    }
+
+    @Override
+    public void updateNews(News news) {
+        newsRepository.save(news);
+    }
+
+    @Override
+    public List<News> getLatestNews(int limit) {
+        return newsRepository.findTopByOrderByPublishedAtDesc(limit);
     }
 
     @Override
@@ -52,26 +86,6 @@ public class NewsServiceImpl implements NewsService {
     public News getNews(Long id) {
         return newsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("News not found with id: " + id));
-    }
-
-    @Override
-    public void fetchLatestNews() {
-        try {
-            String url = buildMediaStackUrl();
-            NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
-            
-            if (response != null && response.getData() != null) {
-                List<News> newsList = new ArrayList<>();
-                for (NewsArticleDTO article : response.getData()) {
-                    News news = convertToNews(article);
-                    newsList.add(news);
-                }
-                newsRepository.saveAll(newsList);
-                log.info("Saved {} news articles", newsList.size());
-            }
-        } catch (Exception e) {
-            log.error("Error fetching news: {}", e.getMessage());
-        }
     }
 
     @Override
@@ -107,6 +121,9 @@ public class NewsServiceImpl implements NewsService {
     public void processNews(News news) {
         try {
             String summary = geminiService.summarizeNews(news.getTitle(), news.getContent());
+            news.setSummary(summary);
+            news.setProcessed(true);
+            newsRepository.save(news);
             
             telegramService.sendNewsUpdate(
                 "YOUR_CHAT_ID", // Replace with actual chat ID
@@ -122,7 +139,7 @@ public class NewsServiceImpl implements NewsService {
     }
 
     private boolean newsExists(News news) {
-        return newsRepository.existsByTitleAndDescription(news.getTitle(), news.getDescription());
+        return newsRepository.existsByTitleAndContent(news.getTitle(), news.getContent());
     }
 
     private String buildMediaStackUrl() {
@@ -133,8 +150,12 @@ public class NewsServiceImpl implements NewsService {
         News news = new News();
         news.setTitle(article.getTitle());
         news.setContent(article.getDescription());
-        news.setPublishedAt(LocalDateTime.now()); // or parse from article if available
+        news.setUrl(article.getUrl());
+        news.setImageUrl(article.getImage());
+        news.setSource(article.getSource());
+        news.setPublishedAt(LocalDateTime.now());
         news.setProcessed(false);
+        news.setPosted(false);
         return news;
     }
 }

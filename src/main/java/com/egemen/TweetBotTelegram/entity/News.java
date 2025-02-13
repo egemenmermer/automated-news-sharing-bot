@@ -1,12 +1,16 @@
 package com.egemen.TweetBotTelegram.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "news")
 public class News {
     @Id
@@ -24,10 +28,16 @@ public class News {
     private String content;
     
     @Column(columnDefinition = "TEXT")
-    private String description;
+    private String url;
+    
+    @Column(columnDefinition = "TEXT")
+    private String source;
     
     @Column(columnDefinition = "TEXT")
     private String imageUrl;
+    
+    @Column(columnDefinition = "TEXT")
+    private String summary;
     
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
@@ -37,7 +47,4 @@ public class News {
     
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
-
-   
-    
 }

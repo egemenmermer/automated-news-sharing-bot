@@ -25,6 +25,11 @@ public interface InstagramService {
     InstagramPost createPost(Long newsId, String imageUrl);
 
     /**
+     * Create a new Instagram post directly
+     */
+    void createPost(String title, String caption, String imageUrl);
+
+    /**
      * Publish a pending post to Instagram
      */
     InstagramPost publishPost(Long id);
@@ -34,5 +39,8 @@ public interface InstagramService {
      */
     void deletePost(Long id);
 
+    /**
+     * Publish all pending posts
+     */
     void publishPendingPosts();
 }
