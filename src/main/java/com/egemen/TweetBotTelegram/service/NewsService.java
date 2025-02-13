@@ -12,4 +12,5 @@ public interface NewsService {
     News save(News news);
     News processNewsImage(News news);
     void markAsPosted(News news);
+    void processNews(News news);
 }

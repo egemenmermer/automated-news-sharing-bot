@@ -1,4 +1,4 @@
-package com.egemen.TweetBotTelegram.service.Impl;
+package com.egemen.TweetBotTelegram.service.impl;
 
 import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
 import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
@@ -6,8 +6,8 @@ import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.GeminiService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.egemen.TweetBotTelegram.service.TelegramService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -17,23 +17,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@Slf4j
 public class NewsServiceImpl implements NewsService {
-    private static final Logger log = LoggerFactory.getLogger(NewsServiceImpl.class);
-    
     private final RestTemplate restTemplate;
     private final String mediaStackApiKey;
     private final NewsRepository newsRepository;
     private final GeminiService geminiService;
+    private final TelegramService telegramService;
 
     public NewsServiceImpl(
             RestTemplate restTemplate,
             @Value("${mediastack.api.key}") String mediaStackApiKey,
             NewsRepository newsRepository,
-            GeminiService geminiService) {
+            GeminiService geminiService,
+            TelegramService telegramService) {
         this.restTemplate = restTemplate;
         this.mediaStackApiKey = mediaStackApiKey;
         this.newsRepository = newsRepository;
         this.geminiService = geminiService;
+        this.telegramService = telegramService;
     }
 
     @Override
@@ -99,6 +101,24 @@ public class NewsServiceImpl implements NewsService {
     public void markAsPosted(News news) {
         news.setPosted(true);
         newsRepository.save(news);
+    }
+
+    @Override
+    public void processNews(News news) {
+        try {
+            String summary = geminiService.summarizeNews(news.getTitle(), news.getContent());
+            
+            telegramService.sendNewsUpdate(
+                "YOUR_CHAT_ID", // Replace with actual chat ID
+                news.getTitle(),
+                summary,
+                news.getImageUrl()
+            );
+            
+        } catch (Exception e) {
+            log.error("Error processing news: {}", e.getMessage(), e);
+            telegramService.sendError("YOUR_CHAT_ID", "Error processing news: " + e.getMessage());
+        }
     }
 
     private boolean newsExists(News news) {
