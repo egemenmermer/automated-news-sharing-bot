@@ -1,4 +1,4 @@
-package com.egemen.TweetBotTelegram.service.impl;
+package com.egemen.TweetBotTelegram.service.Impl;
 
 import com.egemen.TweetBotTelegram.service.ImageGenerationService;
 import lombok.extern.slf4j.Slf4j;

@@ -3,6 +3,7 @@ package com.egemen.TweetBotTelegram.scheduler;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.ImageService;
 import com.egemen.TweetBotTelegram.service.InstagramService;
+import com.egemen.TweetBotTelegram.service.BotService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +15,6 @@ import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Component
 public class SocialMediaScheduler {
     private static final Logger log = LoggerFactory.getLogger(SocialMediaScheduler.class);
@@ -22,6 +22,7 @@ public class SocialMediaScheduler {
     private final NewsService newsService;
     private final ImageService imageService;
     private final InstagramService instagramService;
+    private final BotService botService;
     private final InstagramPostRepository instagramPostRepository;
     private final int maxRetries;
 
@@ -35,11 +36,13 @@ public class SocialMediaScheduler {
             NewsService newsService,
             ImageService imageService,
             InstagramService instagramService,
+            BotService botService,
             InstagramPostRepository instagramPostRepository,
-            int maxRetries) {
+            @Value("${app.max-retries:3}") int maxRetries) {
         this.newsService = newsService;
         this.imageService = imageService;
         this.instagramService = instagramService;
+        this.botService = botService;
         this.instagramPostRepository = instagramPostRepository;
         this.maxRetries = maxRetries;
     }

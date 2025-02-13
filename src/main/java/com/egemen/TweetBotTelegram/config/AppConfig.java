@@ -46,7 +46,6 @@ public class AppConfig {
 
     @Data
     public static class InstagramConfig {
-        private int imageSize = 1080;
         private int maxRetries = 3;
         private int postDelay = 60;
         private String captionTemplate = "📰 {title}\n\n{description}\n\n#news #update";

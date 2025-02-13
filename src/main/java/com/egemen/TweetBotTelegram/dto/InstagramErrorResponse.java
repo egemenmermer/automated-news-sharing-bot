@@ -1,4 +1,4 @@
-package com.egemen.TweetBotTelegram.dto.instagram;
+package com.egemen.TweetBotTelegram.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;

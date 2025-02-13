@@ -8,6 +8,7 @@ import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
 import com.egemen.TweetBotTelegram.service.InstagramService;
 import com.egemen.TweetBotTelegram.service.NewsService;
+import com.egemen.TweetBotTelegram.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,11 +30,17 @@ public class InstagramServiceImpl implements InstagramService {
     private final InstagramPostRepository instagramPostRepository;
     private final NewsService newsService;
     private final InstagramApiService instagramApiService;
+    private final ImageService imageService;
 
-    public InstagramServiceImpl(InstagramPostRepository instagramPostRepository, NewsService newsService, InstagramApiService instagramApiService) {
+    public InstagramServiceImpl(
+            InstagramPostRepository instagramPostRepository,
+            NewsService newsService,
+            InstagramApiService instagramApiService,
+            ImageService imageService) {
         this.instagramPostRepository = instagramPostRepository;
         this.newsService = newsService;
         this.instagramApiService = instagramApiService;
+        this.imageService = imageService;
     }
 
     @Override
@@ -104,9 +111,23 @@ public class InstagramServiceImpl implements InstagramService {
     @Override
     public InstagramPost createPost(Long newsId, String imageUrl) {
         News news = newsService.getNews(newsId);
+        
+        // Validate and process image using ImageService
+        if (!imageService.isValidForInstagram(imageUrl)) {
+            // Try to find another suitable image
+            String newImageUrl = imageService.findImageForNews(news);
+            if (newImageUrl == null) {
+                throw new InstagramApiException("No suitable image found for the post");
+            }
+            imageUrl = newImageUrl;
+        }
+
+        // Process image for Instagram if needed
+        String processedImageUrl = imageService.processImageForInstagram(imageUrl);
+        
         InstagramPost post = new InstagramPost();
         post.setNews(news);
-        post.setImageUrl(imageUrl);
+        post.setImageUrl(processedImageUrl);
         post.setCaption(generateCaption(news));
         post.setStatus(PostStatus.PENDING);
         return instagramPostRepository.save(post);
