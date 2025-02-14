@@ -1,154 +1,110 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-
 import com.egemen.TweetBotTelegram.exception.InstagramApiException;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
-import com.egemen.TweetBotTelegram.service.RateLimiterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
+
 @Service
 public class InstagramApiServiceImpl implements InstagramApiService {
-    private static final Logger log = LoggerFactory.getLogger(InstagramApiServiceImpl.class);
+
+    private static final Logger logger = LoggerFactory.getLogger(InstagramApiServiceImpl.class);
+    private static final int MAX_CAPTION_LENGTH = 2200;
 
     @Value("${instagram.access.token}")
     private String accessToken;
 
-    @Value("${instagram.api.url}")
-    private String apiUrl;
+    @Value("${instagram.user.id}")
+    private String instagramUserId;
 
-    @Value("${instagram.rate.limit.capacity:25}")
-    private int rateLimitCapacity;
-
-    @Value("${instagram.rate.limit.interval:3600}")
-    private long rateLimitInterval;
-
-    private final RestTemplate restTemplate;
-    private final RateLimiterService rateLimiterService;
-
-    public InstagramApiServiceImpl(RestTemplate restTemplate, RateLimiterService rateLimiterService) {
-        this.restTemplate = restTemplate;
-        this.rateLimiterService = rateLimiterService;
-    }
+    private final RestTemplate restTemplate = new RestTemplate();
+    private static final String API_URL = "https://graph.instagram.com/v22.0";
 
     @Override
-    @Retryable(
-        value = {InstagramApiException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 5000)
-    )
-    public String uploadMedia(String imageUrl) {
+    @Retryable(value = InstagramApiException.class, maxAttempts = 3, backoff = @Backoff(delay = 2000))
+    public String uploadImageToInstagram(String imageUrl, String caption) throws InstagramApiException {
+        String url = API_URL + "/" + instagramUserId + "/media";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(accessToken);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("image_url", imageUrl);
+        requestBody.put("caption", caption);
+
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+
         try {
-            rateLimiterService.checkRateLimit("instagram-upload", rateLimitCapacity, rateLimitInterval);
-            
-            String url = apiUrl + "/media";
-            
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("image_url", imageUrl);
-            body.add("access_token", accessToken);
-            body.add("media_type", "IMAGE");
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-            
-            ResponseEntity<com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO> response = restTemplate.postForEntity(
-                url, 
-                request, 
-                com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO.class
-            );
-
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                throw new InstagramApiException("Failed to upload media: " + response.getStatusCode());
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            if (response.getBody() != null && response.getBody().containsKey("id")) {
+                logger.info("Media container created: {}", response.getBody().get("id"));
+                return (String) response.getBody().get("id");
             }
-
-            return response.getBody().getId();
-            
+            throw new InstagramApiException("Failed to upload image");
         } catch (HttpClientErrorException e) {
-            log.error("Instagram API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new InstagramApiException("Instagram API error: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Error uploading media to Instagram: {}", e.getMessage());
-            throw new InstagramApiException("Failed to upload media to Instagram", e);
+            logger.error("Instagram API error: {}", e.getResponseBodyAsString());
+            throw new InstagramApiException("Instagram API error: " + e.getMessage());
         }
     }
 
     @Override
-    @Retryable(
-        value = {InstagramApiException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 5000)
-    )
-    public String publishMedia(String containerId, String caption) {
+    @Retryable(value = InstagramApiException.class, maxAttempts = 3, backoff = @Backoff(delay = 2000))
+    public boolean publishPost(String mediaId) throws InstagramApiException {
+        String url = API_URL + "/" + instagramUserId + "/media_publish";
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("creation_id", mediaId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(accessToken);
+
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+
         try {
-            rateLimiterService.checkRateLimit("instagram-publish", rateLimitCapacity, rateLimitInterval);
-            
-            String url = apiUrl + "/media/publish";
-            
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("creation_id", containerId);
-            body.add("access_token", accessToken);
-            body.add("caption", caption);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-            
-            ResponseEntity<com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO> response = restTemplate.postForEntity(
-                url,
-                request,
-                    com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO.class
-            );
-
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                throw new InstagramApiException("Failed to publish media");
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            if (response.getStatusCode() == HttpStatus.OK) {
+                logger.info("Successfully published post with media ID: {}", mediaId);
+                return true;
+            } else {
+                logger.error("Failed to publish post. Response: {}", response.getBody());
+                return false;
             }
-
-            return response.getBody().getId();
-            
         } catch (HttpClientErrorException e) {
-            log.error("Instagram API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new InstagramApiException("Instagram API error: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Error publishing media to Instagram: {}", e.getMessage());
-            throw new InstagramApiException("Failed to publish media to Instagram", e);
+            logger.error("Instagram API error: {}", e.getResponseBodyAsString());
+            throw new InstagramApiException("Instagram API error: " + e.getMessage());
         }
     }
 
-    @Override
-    public String getMediaStatus(String containerId) {
+    public void refreshAccessToken() {
+        String url = API_URL + "/refresh_access_token?grant_type=ig_refresh_token&access_token=" + accessToken;
+
         try {
-            String url = apiUrl + "/media/" + containerId;
-            
-            ResponseEntity<com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO> response = restTemplate.getForEntity(
-                url + "?access_token={token}",
-                com.egemen.TweetBotTelegram.dto.InstagramMediaResponseDTO.class,
-                accessToken
-            );
-
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                throw new InstagramApiException("Failed to get media status");
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+            if (response.getBody() != null && response.getBody().containsKey("access_token")) {
+                accessToken = (String) response.getBody().get("access_token");
+                logger.info("Instagram Access Token refreshed successfully");
+            } else {
+                logger.error("Failed to refresh Instagram Access Token");
             }
-
-            return response.getBody().getStatus();
-            
-        } catch (HttpClientErrorException e) {
-            log.error("Instagram API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new InstagramApiException("Instagram API error: " + e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Error checking media status: {}", e.getMessage());
-            throw new InstagramApiException("Failed to check media status", e);
+            logger.error("Error refreshing Instagram token: {}", e.getMessage());
         }
     }
+
 }

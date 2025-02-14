@@ -1,25 +1,27 @@
 package com.egemen.TweetBotTelegram.service;
 
+import com.egemen.TweetBotTelegram.exception.InstagramApiException;
+
 public interface InstagramApiService {
     /**
-     * Upload image to Instagram
-     * @param imageUrl URL of the processed image
-     * @return Container ID from Instagram
+     * Uploads an image to Instagram and returns a media container ID.
+     * @param imageUrl The URL of the processed image.
+     * @param caption The caption for the post.
+     * @return The media container ID from Instagram.
+     * @throws InstagramApiException If the upload fails.
      */
-    String uploadMedia(String imageUrl);
+    String uploadImageToInstagram(String imageUrl, String caption) throws InstagramApiException;
 
     /**
-     * Publish the uploaded media
-     * @param containerId Container ID from uploadMedia
-     * @param caption Post caption
-     * @return Instagram post ID
+     * Publishes the uploaded media on Instagram.
+     * @param mediaId The media container ID obtained from uploadImageToInstagram.
+     * @return True if the post was successfully published, false otherwise.
+     * @throws InstagramApiException If publishing fails.
      */
-    String publishMedia(String containerId, String caption);
+    boolean publishPost(String mediaId) throws InstagramApiException;
 
     /**
-     * Check media status
-     * @param containerId Container ID from uploadMedia
-     * @return Status of the media (FINISHED, IN_PROGRESS, ERROR)
+     * Refreshes the Instagram access token.
      */
-    String getMediaStatus(String containerId);
+    void refreshAccessToken();
 }

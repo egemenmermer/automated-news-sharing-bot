@@ -28,7 +28,7 @@ public class InstagramServiceImpl implements InstagramService {
     @Value("${INSTAGRAM_ACCESS_TOKEN}")
     private String accessToken;
 
-    private final String INSTAGRAM_API_URL = "https://graph.instagram.com/v12.0";
+    private final String INSTAGRAM_API_URL = "https://graph.instagram.com/v22.0";
     private final RestTemplate restTemplate;
     private final InstagramPostRepository instagramPostRepository;
     private final NewsRepository newsRepository;
