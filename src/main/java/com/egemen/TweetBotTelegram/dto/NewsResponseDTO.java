@@ -1,7 +1,14 @@
 package com.egemen.TweetBotTelegram.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class NewsResponseDTO {
     private List<NewsArticleDTO> data;
     private Pagination pagination;
@@ -29,37 +36,6 @@ public class NewsResponseDTO {
         private int count;
         private int total;
 
-        // Getters and Setters
-        public int getLimit() {
-            return limit;
-        }
 
-        public void setLimit(int limit) {
-            this.limit = limit;
-        }
-
-        public int getOffset() {
-            return offset;
-        }
-
-        public void setOffset(int offset) {
-            this.offset = offset;
-        }
-
-        public int getCount() {
-            return count;
-        }
-
-        public void setCount(int count) {
-            this.count = count;
-        }
-
-        public int getTotal() {
-            return total;
-        }
-
-        public void setTotal(int total) {
-            this.total = total;
-        }
     }
 }
