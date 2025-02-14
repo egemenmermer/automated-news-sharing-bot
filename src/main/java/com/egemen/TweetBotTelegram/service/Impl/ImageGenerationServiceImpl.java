@@ -94,7 +94,7 @@ public class ImageGenerationServiceImpl implements ImageGenerationService {
             g2d.setColor(new Color(0, 0, 0, 0.5f));
             g2d.fillRect(0, originalImage.getHeight() - 200, originalImage.getWidth(), 200);
 
-            Font font = new Font("Arial", Font.BOLD, 40);
+            Font font = new Font("Arial", Font.BOLD, 20);
             g2d.setFont(font);
             g2d.setColor(Color.WHITE);
 

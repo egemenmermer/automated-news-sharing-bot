@@ -5,6 +5,7 @@ import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.service.BotService;
 import com.egemen.TweetBotTelegram.service.TelegramService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -28,14 +29,16 @@ import java.util.Map;
 @Slf4j
 @Service
 public class TelegramServiceImpl extends TelegramLongPollingBot implements TelegramService {
+    @Autowired
+    @Lazy
+    private BotService botService;
 
-    private final BotService botService;
     private final String botUsername;
     private final String botToken;
     private boolean isBotRunning = false;
 
     public TelegramServiceImpl(
-            BotService botService,
+             BotService botService,
             @Value("${telegram.bot.username}") String botUsername,
             @Value("${telegram.bot.token}") String botToken) {
         super(botToken);

@@ -4,9 +4,9 @@ import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
 import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
-import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.GeminiService;
-import com.egemen.TweetBotTelegram.service.TelegramService;
+import com.egemen.TweetBotTelegram.service.NewsService;
+import com.egemen.TweetBotTelegram.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,30 +17,31 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@Service
+/**
+ * Implementation of NewsService responsible for fetching and processing news.
+ */
 @Slf4j
+@Service
 public class NewsServiceImpl implements NewsService {
 
     private final RestTemplate restTemplate;
     private final String mediaStackApiKey;
     private final NewsRepository newsRepository;
     private final GeminiService geminiService;
-    private TelegramService telegramService;
+    private final NotificationService notificationService;
 
+    @Autowired
     public NewsServiceImpl(
             RestTemplate restTemplate,
             @Value("${mediastack.api.key}") String mediaStackApiKey,
             NewsRepository newsRepository,
-            GeminiService geminiService) {
+            GeminiService geminiService,
+            NotificationService notificationService) {
         this.restTemplate = restTemplate;
         this.mediaStackApiKey = mediaStackApiKey;
         this.newsRepository = newsRepository;
         this.geminiService = geminiService;
-    }
-
-    @Autowired
-    public void setTelegramService(TelegramService telegramService) {
-        this.telegramService = telegramService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -48,7 +49,7 @@ public class NewsServiceImpl implements NewsService {
         try {
             String url = buildMediaStackUrl();
             NewsResponseDTO response = restTemplate.getForObject(url, NewsResponseDTO.class);
-            
+
             if (response != null && response.getData() != null) {
                 List<News> newsList = new ArrayList<>();
                 for (NewsArticleDTO article : response.getData()) {
@@ -57,12 +58,13 @@ public class NewsServiceImpl implements NewsService {
                         newsList.add(newsRepository.save(news));
                     }
                 }
-                log.info("Fetched {} new articles", newsList.size());
+                log.info("📢 Fetched {} new articles", newsList.size());
                 return newsList;
             }
             return new ArrayList<>();
         } catch (Exception e) {
-            log.error("Error fetching news: {}", e.getMessage());
+            log.error("❌ Error fetching news: {}", e.getMessage());
+            notificationService.sendError("YOUR_CHAT_ID", "Failed to fetch news.");
             throw new RuntimeException("Failed to fetch news", e);
         }
     }
@@ -124,17 +126,11 @@ public class NewsServiceImpl implements NewsService {
             news.setSummary(summary);
             news.setProcessed(true);
             newsRepository.save(news);
-            
-            telegramService.sendNewsUpdate(
-                "YOUR_CHAT_ID", // Replace with actual chat ID
-                news.getTitle(),
-                summary,
-                news.getImageUrl()
-            );
-            
+
+            notificationService.sendNotification("YOUR_CHAT_ID", "📰 " + news.getTitle() + "\n" + summary);
         } catch (Exception e) {
-            log.error("Error processing news: {}", e.getMessage(), e);
-            telegramService.sendError("YOUR_CHAT_ID", "Error processing news: " + e.getMessage());
+            log.error("❌ Error processing news: {}", e.getMessage(), e);
+            notificationService.sendError("YOUR_CHAT_ID", "Error processing news.");
         }
     }
 

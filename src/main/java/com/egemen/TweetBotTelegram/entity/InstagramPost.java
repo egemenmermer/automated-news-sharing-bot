@@ -36,10 +36,20 @@ public class InstagramPost {
     @JoinColumn(name = "bot_id")
     private Bot bot;
 
+    @Column
+    private LocalDateTime createdAt;
+
     public void incrementRetryCount() {
         this.retryCount = (this.retryCount == null ? 0 : this.retryCount) + 1;
     }
 
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 
     public Long getId() {
         return id;
