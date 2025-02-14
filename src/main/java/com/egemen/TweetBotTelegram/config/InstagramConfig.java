@@ -1,23 +1,31 @@
 package com.egemen.TweetBotTelegram.config;
 
+import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 
 @Configuration
+@PropertySource(value = ".env", ignoreResourceNotFound = true)
 public class InstagramConfig {
-    
-    @Value("${instagram.access.token}")
-    private String accessToken;
 
-    @Bean("instagramRestTemplate")
-    public RestTemplate instagramRestTemplate() {
-        RestTemplate restTemplate = new RestTemplate();
-        restTemplate.getInterceptors().add((request, body, execution) -> {
-            request.getHeaders().setBearerAuth(accessToken);
-            return execution.execute(request, body);
-        });
-        return restTemplate;
+    @Value("${INSTAGRAM_USERNAME}")
+    private String username;
+
+    @Value("${INSTAGRAM_PASSWORD}")
+    private String password;
+
+    @Bean
+    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
+        return new PropertySourcesPlaceholderConfigurer();
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPassword() {
+        return password;
     }
 }

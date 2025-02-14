@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/bots")
+@RequestMapping("/api/bot")
 @RequiredArgsConstructor
 public class BotController {
     private final BotService botService;
@@ -31,7 +31,7 @@ public class BotController {
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("/status")
+    @GetMapping("/{chatId}/status")
     public ResponseEntity<Boolean> getBotStatus(@PathVariable String chatId) {
         return ResponseEntity.ok(botService.isRunning(chatId));
     }

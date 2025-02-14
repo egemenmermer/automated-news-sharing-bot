@@ -15,4 +15,18 @@ public interface InstagramPostRepository extends JpaRepository<InstagramPost, Lo
     List<InstagramPost> findByNewsId(Long newsId);
     @Query("SELECT p FROM InstagramPost p WHERE p.status = :status AND p.retryCount < :maxRetries")
     List<InstagramPost> findRetryablePosts(@Param("status") PostStatus status, @Param("maxRetries") int maxRetries);
+    
+    // Find failed posts that can be retried
+    default List<InstagramPost> findFailedRetryablePosts(int maxRetries) {
+        return findByStatusAndRetryCountLessThan(PostStatus.FAILED, maxRetries);
+    }
+    
+    // Find pending posts
+    default List<InstagramPost> findPendingPosts() {
+        return findByStatus(PostStatus.PENDING);
+    }
+    
+    // Count pending posts
+    @Query("SELECT COUNT(p) FROM InstagramPost p WHERE p.status = 'PENDING'")
+    int countPendingPosts();
 }

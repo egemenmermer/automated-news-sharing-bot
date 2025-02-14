@@ -1,4 +1,4 @@
-package com.egemen.TweetBotTelegram.service.impl;
+package com.egemen.TweetBotTelegram.service.Impl;
 
 import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
 import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
@@ -54,11 +54,11 @@ public class NewsServiceImpl implements NewsService {
                 for (NewsArticleDTO article : response.getData()) {
                     News news = convertToNews(article);
                     if (!newsExists(news)) {
-                        newsList.add(news);
+                        newsList.add(newsRepository.save(news));
                     }
                 }
                 log.info("Fetched {} new articles", newsList.size());
-                return newsRepository.saveAll(newsList);
+                return newsList;
             }
             return new ArrayList<>();
         } catch (Exception e) {

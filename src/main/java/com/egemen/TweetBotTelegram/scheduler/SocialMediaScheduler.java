@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @Slf4j
 @Component
 public class SocialMediaScheduler {
-    private static final Logger log = LoggerFactory.getLogger(SocialMediaScheduler.class);
+
     
     private final NewsService newsService;
     private final ImageService imageService;

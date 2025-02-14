@@ -1,5 +1,7 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
+import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
+import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.service.BotService;
 import com.egemen.TweetBotTelegram.service.TelegramService;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,8 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramBot;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +32,6 @@ public class TelegramServiceImpl extends TelegramLongPollingBot implements Teleg
     private final BotService botService;
     private final String botUsername;
     private final String botToken;
-    private final Map<String, UserState> userStates = new HashMap<>();
     private boolean isBotRunning = false;
 
     public TelegramServiceImpl(
@@ -39,16 +42,6 @@ public class TelegramServiceImpl extends TelegramLongPollingBot implements Teleg
         this.botService = botService;
         this.botUsername = botUsername;
         this.botToken = botToken;
-        log.info("TelegramServiceImpl initialized with username: {}", botUsername);
-    }
-
-    private enum UserState {
-        NONE,
-        AWAITING_LOGIN_USERNAME,
-        AWAITING_LOGIN_PASSWORD,
-        AWAITING_REGISTER_USERNAME,
-        AWAITING_REGISTER_PASSWORD,
-        AWAITING_REGISTER_EMAIL
     }
 
     @Override
@@ -58,183 +51,60 @@ public class TelegramServiceImpl extends TelegramLongPollingBot implements Teleg
 
     @Override
     public void onUpdateReceived(Update update) {
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String messageText = update.getMessage().getText();
-            String chatId = update.getMessage().getChatId().toString();
-            
-            log.info("Received message: '{}' from chat ID: {}", messageText, chatId);
+        if (!update.hasMessage() || !update.getMessage().hasText()) {
+            return;
+        }
 
-            UserState currentState = userStates.getOrDefault(chatId, UserState.NONE);
+        String chatId = update.getMessage().getChatId().toString();
+        String message = update.getMessage().getText();
 
-            // Handle user registration/login states
-            if (handleUserState(chatId, messageText, currentState)) {
-                return;
+        handleCommand(chatId, message);
+    }
+
+    private void handleCommand(String chatId, String message) {
+        switch (message.toLowerCase()) {
+            case "/start" -> {
+                sendMessage(chatId, "Welcome to Neural News Bot! 🤖\n\n" +
+                        "Available commands:\n" +
+                        "/fetch - Fetch latest news\n" +
+                        "/latest - Show latest news\n" +
+                        "/status - Show bot status\n" +
+                        "/startbot - Start automated posting (every hour)\n" +
+                        "/stopbot - Stop automated posting\n" +
+                        "/pending - Show pending posts\n" +
+                        "/publish - Publish pending posts now");
+                sendKeyboard(chatId);
             }
-
-            // Handle commands
-            switch (messageText) {
-                case "/start" -> handleStart(chatId);
-                case "/help" -> handleHelp(chatId);
-                case "/status" -> handleStatus(chatId);
-                case "/startbot" -> {
-                    botService.startBot(chatId);
-                    handleStatus(chatId);
-                }
-                case "/stopbot" -> {
-                    botService.stopBot(chatId);
-                    handleStatus(chatId);
-                }
-                case "/logout" -> handleLogout(chatId);
-                case "/login" -> handleLogin(chatId);
-                case "/register" -> handleRegister(chatId);
-                case "/fetch" -> handleFetchNews(chatId);
-                case "/latest" -> handleLatestNews(chatId);
-                default -> handleUnknownCommand(chatId);
-            }
+            case "/fetch" -> handleFetchNews(chatId);
+            case "/latest" -> handleLatestNews(chatId);
+            case "/status" -> handleStatus(chatId);
+            case "/startbot" -> handleStartBot(chatId);
+            case "/stopbot" -> handleStopBot(chatId);
+            case "/pending" -> handlePendingPosts(chatId);
+            case "/publish" -> handlePublishPosts(chatId);
+            default -> sendMessage(chatId, "Unknown command. Type /start for available commands.");
         }
     }
 
-    private boolean handleUserState(String chatId, String message, UserState state) {
-        switch (state) {
-            case AWAITING_LOGIN_USERNAME -> {
-                // Store username and ask for password
-                userStates.put(chatId, UserState.AWAITING_LOGIN_PASSWORD);
-                sendMessage(chatId, "Please enter your password:");
-                return true;
-            }
-            case AWAITING_LOGIN_PASSWORD -> {
-                // Process login
-                userStates.put(chatId, UserState.NONE);
-                sendMessage(chatId, "Login successful! Welcome back.");
-                showMainMenu(chatId);
-                return true;
-            }
-            case AWAITING_REGISTER_USERNAME -> {
-                // Store username and ask for password
-                userStates.put(chatId, UserState.AWAITING_REGISTER_PASSWORD);
-                sendMessage(chatId, "Please enter a password:");
-                return true;
-            }
-            case AWAITING_REGISTER_PASSWORD -> {
-                // Store password and ask for email
-                userStates.put(chatId, UserState.AWAITING_REGISTER_EMAIL);
-                sendMessage(chatId, "Please enter your email:");
-                return true;
-            }
-            case AWAITING_REGISTER_EMAIL -> {
-                // Complete registration
-                userStates.put(chatId, UserState.NONE);
-                sendMessage(chatId, "Registration successful! You can now login.");
-                showLoginButton(chatId);
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
-    }
-
-    private void handleStart(String chatId) {
-        sendMessage(chatId, "Welcome to Neural News Bot! 🤖\n\nPlease login or register to continue.");
-        showLoginRegisterButtons(chatId);
-    }
-
-    private void handleHelp(String chatId) {
-        sendMessage(chatId, """
-            Available commands:
-            /start - Start the bot
-            /help - Show this help message
-            /login - Login to your account
-            /register - Create new account
-            /logout - Logout from your account
-            /startbot - Start news fetching
-            /stopbot - Stop news fetching
-            /status - Check bot status
-            /fetch - Fetch new articles
-            /latest - Get latest news
-            """);
-    }
-
-    private void handleStatus(String chatId) {
-        String status = botService.isRunning(chatId) ?
-            "✅ Bot is running - Fetching and posting news hourly" :
-            "❌ Bot is stopped";
-        sendMessage(chatId, status);
-    }
-
-    private void handleLogin(String chatId) {
-        userStates.put(chatId, UserState.AWAITING_LOGIN_USERNAME);
-        sendMessage(chatId, "Please enter your username:");
-    }
-
-    private void handleLogout(String chatId) {
-        userStates.put(chatId, UserState.NONE);
-        sendMessage(chatId, "You have been logged out successfully!");
-        showLoginRegisterButtons(chatId);
-    }
-
-    private void handleRegister(String chatId) {
-        userStates.put(chatId, UserState.AWAITING_REGISTER_USERNAME);
-        sendMessage(chatId, "Please enter a username:");
-    }
-
-    private void handleFetchNews(String chatId) {
-        sendMessage(chatId, "🔄 Fetching new articles...");
-        // TODO: Implement actual news fetching
-        sendMessage(chatId, "Found 5 new articles!");
-    }
-
-    private void handleLatestNews(String chatId) {
-        sendMessage(chatId, "📰 Latest News:");
-        // TODO: Implement latest news retrieval
-        sendMessage(chatId, "No news available at the moment.");
-    }
-
-    private void handleUnknownCommand(String chatId) {
-        sendMessage(chatId, "Unknown command. Use /help to see available commands.");
-    }
-
-    private void showLoginRegisterButtons(String chatId) {
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        List<KeyboardRow> keyboard = new ArrayList<>();
-        KeyboardRow row = new KeyboardRow();
-        row.add("/login");
-        row.add("/register");
-        keyboard.add(row);
-        keyboardMarkup.setKeyboard(keyboard);
-        keyboardMarkup.setResizeKeyboard(true);
-        
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("Please choose an option:")
-                .replyMarkup(keyboardMarkup)
-                .build();
-        
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Error showing login/register buttons: {}", e.getMessage());
-        }
-    }
-
-    private void showMainMenu(String chatId) {
+    private void sendKeyboard(String chatId) {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         List<KeyboardRow> keyboard = new ArrayList<>();
         
         KeyboardRow row1 = new KeyboardRow();
         row1.add("/fetch");
         row1.add("/latest");
-        keyboard.add(row1);
         
         KeyboardRow row2 = new KeyboardRow();
-        row2.add("/startbot");
-        row2.add("/stopbot");
         row2.add("/status");
-        keyboard.add(row2);
+        row2.add("/pending");
         
         KeyboardRow row3 = new KeyboardRow();
-        row3.add("/logout");
-        row3.add("/help");
+        row3.add("/startbot");
+        row3.add("/stopbot");
+        row3.add("/publish");
+        
+        keyboard.add(row1);
+        keyboard.add(row2);
         keyboard.add(row3);
         
         keyboardMarkup.setKeyboard(keyboard);
@@ -242,48 +112,130 @@ public class TelegramServiceImpl extends TelegramLongPollingBot implements Teleg
         
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text("Main Menu:")
+                .text("Keyboard enabled. Choose a command:")
                 .replyMarkup(keyboardMarkup)
                 .build();
-        
+                
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            log.error("Error showing main menu: {}", e.getMessage());
+            log.error("Error sending keyboard: {}", e.getMessage());
         }
     }
 
-    private void showLoginButton(String chatId) {
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        List<KeyboardRow> keyboard = new ArrayList<>();
-        KeyboardRow row = new KeyboardRow();
-        row.add("/login");
-        keyboard.add(row);
-        keyboardMarkup.setKeyboard(keyboard);
-        keyboardMarkup.setResizeKeyboard(true);
-        
-        SendMessage message = SendMessage.builder()
-                .chatId(chatId)
-                .text("You can now login:")
-                .replyMarkup(keyboardMarkup)
-                .build();
-        
+    private void handleStatus(String chatId) {
         try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Error showing login button: {}", e.getMessage());
+            boolean isRunning = botService.isRunning(chatId);
+            int pendingPosts = botService.getPendingPostsCount(chatId);
+            
+            String status = String.format("""
+                🤖 Bot Status:
+                
+                Automated Posting: %s
+                Pending Posts: %d
+                
+                Last Update: %s
+                """, 
+                isRunning ? "✅ Running" : "❌ Stopped",
+                pendingPosts,
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                
+            sendMessage(chatId, status);
+        } catch (Exception e) {
+            sendError(chatId, "Error getting bot status");
+        }
+    }
+
+    private void handleStartBot(String chatId) {
+        try {
+            botService.startBot(chatId);
+            sendMessage(chatId, "✅ Bot started! Will post news automatically every hour.");
+        } catch (Exception e) {
+            sendError(chatId, "Failed to start bot");
+        }
+    }
+
+    private void handleStopBot(String chatId) {
+        try {
+            botService.stopBot(chatId);
+            sendMessage(chatId, "🛑 Bot stopped! Automated posting disabled.");
+        } catch (Exception e) {
+            sendError(chatId, "Failed to stop bot");
+        }
+    }
+
+    private void handlePendingPosts(String chatId) {
+        try {
+            List<InstagramPost> pendingPosts = botService.getPendingPosts(chatId);
+            if (pendingPosts.isEmpty()) {
+                sendMessage(chatId, "No pending posts.");
+                return;
+            }
+
+            StringBuilder message = new StringBuilder("📝 Pending Posts:\n\n");
+            for (InstagramPost post : pendingPosts) {
+                message.append(String.format("• %s\n", post.getNews().getTitle()));
+            }
+            message.append("\nUse /publish to publish these posts now.");
+            
+            sendMessage(chatId, message.toString());
+        } catch (Exception e) {
+            sendError(chatId, "Error getting pending posts");
+        }
+    }
+
+    private void handlePublishPosts(String chatId) {
+        try {
+            sendMessage(chatId, "🔄 Publishing pending posts...");
+            botService.publishPendingPosts(chatId);
+            sendMessage(chatId, "✅ Posts published successfully!");
+        } catch (Exception e) {
+            sendError(chatId, "Error publishing posts");
+        }
+    }
+
+    private void handleFetchNews(String chatId) {
+        try {
+            sendMessage(chatId, "🔄 Fetching new articles...");
+            int count = botService.fetchLatestNews(chatId);
+            sendMessage(chatId, String.format("✅ Found %d new articles!", count));
+        } catch (Exception e) {
+            log.error("Error fetching news: {}", e.getMessage());
+            sendError(chatId, "Failed to fetch news. Please try again later.");
+        }
+    }
+
+    private void handleLatestNews(String chatId) {
+        try {
+            List<NewsArticleDTO> latestNews = botService.getLatestNews(chatId, 5);
+            if (latestNews.isEmpty()) {
+                sendMessage(chatId, "No news available at the moment.");
+                return;
+            }
+
+            StringBuilder message = new StringBuilder("📰 Latest News:\n\n");
+            for (NewsArticleDTO news : latestNews) {
+                message.append(String.format("• <b>%s</b>\n%s\n%s\n\n", 
+                    news.getTitle(), 
+                    news.getDescription(),
+                    news.getUrl()));
+            }
+            sendMessage(chatId, message.toString());
+        } catch (Exception e) {
+            log.error("Error getting latest news: {}", e.getMessage());
+            sendError(chatId, "Failed to retrieve latest news. Please try again later.");
         }
     }
 
     @Override
-    public void sendMessage(String chatId, String message) {
+    public void sendMessage(String chatId, String text) {
         try {
-            SendMessage sendMessage = SendMessage.builder()
+            SendMessage message = SendMessage.builder()
                     .chatId(chatId)
-                    .text(message)
+                    .text(text)
                     .parseMode("HTML")
                     .build();
-            execute(sendMessage);
+            execute(message);
         } catch (TelegramApiException e) {
             log.error("Error sending message to Telegram: {}", e.getMessage());
         }

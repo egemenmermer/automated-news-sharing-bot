@@ -5,6 +5,8 @@ import com.egemen.TweetBotTelegram.service.Impl.TelegramServiceImpl;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.InstagramService;
+import com.egemen.TweetBotTelegram.service.Impl.ImageGenerationServiceImpl;
+import com.egemen.TweetBotTelegram.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,6 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 
 @Slf4j
 @Service
@@ -21,16 +26,20 @@ public class BotCoordinator {
     private final GeminiService geminiService;
     private final InstagramService instagramService;
     private final TelegramServiceImpl telegramService;
+    private final ImageGenerationServiceImpl imageGenerationService;
+    private final S3Service s3Service;
     
     private AtomicBoolean isRunning = new AtomicBoolean(false);
     private static final long HOUR_IN_MILLISECONDS = 3600000; // 1 hour
 
     @Autowired
-    public BotCoordinator(NewsService newsService, GeminiService geminiService, InstagramService instagramService, TelegramServiceImpl telegramService) {
+    public BotCoordinator(NewsService newsService, GeminiService geminiService, InstagramService instagramService, TelegramServiceImpl telegramService, ImageGenerationServiceImpl imageGenerationService, S3Service s3Service) {
         this.newsService = newsService;
         this.geminiService = geminiService;
         this.instagramService = instagramService;
         this.telegramService = telegramService;
+        this.imageGenerationService = imageGenerationService;
+        this.s3Service = s3Service;
     }
 
     public void startBot(String chatId) {
@@ -59,7 +68,6 @@ public class BotCoordinator {
 
     private void processAndPostNews(String chatId) {
         try {
-            // 1. Fetch news
             if (chatId != null) telegramService.sendMessage(chatId, "🔄 Fetching latest news...");
             List<News> newsList = newsService.fetchNews();
 
@@ -68,26 +76,34 @@ public class BotCoordinator {
                 return;
             }
 
-            // 2. Process each news item
             for (News news : newsList) {
                 try {
-                    // Generate content
                     String summary = geminiService.summarizeNews(news.getTitle(), news.getContent());
                     String caption = geminiService.generateCaption(news.getTitle(), summary);
-                    String imagePrompt = geminiService.generateImagePrompt(news.getTitle(), summary);
-
-                    // Create and publish Instagram post
-                    instagramService.createPost(news.getTitle(), caption, news.getImageUrl() != null ? news.getImageUrl() : imagePrompt);
-
-                    // Send update to Telegram if chatId is provided
-                    if (chatId != null) {
-                        telegramService.sendNewsUpdate(chatId, news.getTitle(), summary, news.getImageUrl());
+                    
+                    // Generate image using HuggingFace
+                    String imagePath = imageGenerationService.generateNewsImage(news.getTitle(), summary);
+                    
+                    if (imagePath != null) {
+                        // Upload to S3
+                        try (InputStream imageStream = new FileInputStream(new File(imagePath))) {
+                            String s3Url = s3Service.uploadImage(imageStream, 
+                                "news-" + news.getId() + ".png");
+                            
+                            // Create Instagram post
+                            instagramService.createPost(news.getTitle(), caption, s3Url);
+                            
+                            // Send update to Telegram
+                            if (chatId != null) {
+                                telegramService.sendNewsUpdate(chatId, news.getTitle(), summary, s3Url);
+                            }
+                            
+                            // Update news
+                            news.setProcessed(true);
+                            news.setImageUrl(s3Url);
+                            newsService.updateNews(news);
+                        }
                     }
-
-                    // Mark news as processed
-                    news.setProcessed(true);
-                    newsService.updateNews(news);
-
                 } catch (Exception e) {
                     log.error("Error processing news item: {}", news.getTitle(), e);
                     if (chatId != null) {
