@@ -37,6 +37,12 @@ public class EnvConfig {
         logVariable("PEXELS_API_KEY");
         logVariable("INSTAGRAM_ACCESS_TOKEN");
         logVariable("MEDIASTACK_API_KEY");
+        
+        // Scheduler
+        logVariable("APP_SCHEDULER_MAX_RETRIES");
+        logVariable("APP_SCHEDULER_FETCH_DELAY");
+        logVariable("APP_SCHEDULER_POST_DELAY");
+        logVariable("APP_SCHEDULER_RETRY_DELAY");
     }
 
     private void logVariable(String name) {
