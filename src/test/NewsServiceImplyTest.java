@@ -1,7 +1,5 @@
 package com.egemen.TweetBotTelegram.service;
 
-import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
-import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
 import com.egemen.TweetBotTelegram.entity.Bot;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.repository.BotRepository;

@@ -4,15 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.sql.Timestamp;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class NewsArticleDTO {
+public class NewsListDTO {
     private String title;
     private String description;
-    private String url;
-    private String image;
-    private String publishedAt;
-    private String source;
-
-} 
+    private Timestamp publishedAt;
+    private NewsStatus status;
+}

@@ -1,41 +1,23 @@
 package com.egemen.TweetBotTelegram.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
 
 import java.util.List;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 public class NewsResponseDTO {
-    private List<NewsArticleDTO> data;
-    private Pagination pagination;
 
-    // Getters and Setters
-    public List<NewsArticleDTO> getData() {
-        return data;
-    }
+    @JsonProperty("data")
+    private List<ArticleDTO> articles;
 
-    public void setData(List<NewsArticleDTO> data) {
-        this.data = data;
-    }
-
-    public Pagination getPagination() {
-        return pagination;
-    }
-
-    public void setPagination(Pagination pagination) {
-        this.pagination = pagination;
-    }
-
-    public static class Pagination {
-        private int limit;
-        private int offset;
-        private int count;
-        private int total;
-
-
+    public List<ArticleDTO> getArticles() {
+        return articles;
     }
 }

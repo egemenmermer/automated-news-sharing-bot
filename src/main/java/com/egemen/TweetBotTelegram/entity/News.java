@@ -1,10 +1,12 @@
 package com.egemen.TweetBotTelegram.entity;
 
+import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Entity
@@ -16,35 +18,34 @@ public class News {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @ManyToOne
-    @JoinColumn(name = "bot_id", referencedColumnName = "id")
+    @JoinColumn(name = "bot_id")
     private Bot bot;
-    
-    @Column(columnDefinition = "TEXT")
+
+    @Column(name = "title", nullable = false)
     private String title;
-    
-    @Column(columnDefinition = "TEXT")
+
+    @Column(name = "content", nullable = false)
     private String content;
-    
-    @Column(columnDefinition = "TEXT")
-    private String url;
-    
-    @Column(columnDefinition = "TEXT")
-    private String source;
-    
-    @Column(columnDefinition = "TEXT")
-    private String imageUrl;
-    
-    @Column(columnDefinition = "TEXT")
-    private String summary;
-    
+
+    @Column(name = "status", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private NewsStatus status;
+
     @Column(name = "published_at")
-    private LocalDateTime publishedAt;
-    
-    private boolean processed;
-    private boolean posted;
-    
-    @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Timestamp publishedAt;
+
+    @Column(name = "is_processed")
+    private boolean isProcessed;
+
+
+
+    public News(Bot bot, String title, String content, Timestamp publishedAt, NewsStatus status) {
+        this.bot = bot;
+        this.title = title;
+        this.content = content;
+        this.publishedAt = publishedAt;
+        this.status = status;
+    }
 }

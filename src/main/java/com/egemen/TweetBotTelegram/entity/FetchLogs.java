@@ -1,6 +1,6 @@
 package com.egemen.TweetBotTelegram.entity;
 
-import com.egemen.TweetBotTelegram.enums.LogType;
+import com.egemen.TweetBotTelegram.enums.FetchStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,20 +19,25 @@ public class FetchLogs {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "bot_id", nullable = false)
-    private Bot botId;
+    @ManyToOne
+    @JoinColumn(name = "bot_id")
+    private Bot bot;
 
-    @Column(nullable = false, name = "fetched_at")
+    @Column(name = "fetched_at")
     private Timestamp fetchedAt;
 
-    @Column(nullable = false, name = "status")
-    private FetchType status;
+    @Column(name = "status", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private FetchStatus status;
 
-    @Column(nullable = false, name = "fetched_count")
+    @Column(name = "fetched_count")
     private int fetchedCount;
 
-    @Column(name = "log_message")
-    private String logMessage;
+    public FetchLogs(Bot bot, Timestamp timestamp, FetchStatus fetchStatus, int fetchedCount) {
+        this.bot = bot;
+        this.fetchedAt = timestamp;
+        this.status = fetchStatus;
+        this.fetchedCount = fetchedCount;
+    }
 
 }

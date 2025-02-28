@@ -1,12 +1,9 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
-import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
 import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.NewsService;
-import com.egemen.TweetBotTelegram.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

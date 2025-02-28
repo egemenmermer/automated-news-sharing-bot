@@ -6,23 +6,25 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.sql.Timestamp;
+
 @Entity
+@Table(name = "users")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(unique = true, nullable = false)
+
+    @Column(unique = true,name = "username")
     private String username;
-    
-    @Column(nullable = false)
+
+    @Column(name = "password")
     private String password;
-    
-    @Column(nullable = false)
-    private String email;
-} 
+
+    @Column(name = "created_at")
+    private Timestamp createdAt;
+
+}

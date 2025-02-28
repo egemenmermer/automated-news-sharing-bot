@@ -1,19 +1,23 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
 import com.egemen.TweetBotTelegram.entity.Bot;
-import com.egemen.TweetBotTelegram.entity.InstagramPost;
-import com.egemen.TweetBotTelegram.dto.NewsArticleDTO;
 import com.egemen.TweetBotTelegram.entity.News;
+import com.egemen.TweetBotTelegram.entity.User;
+import com.egemen.TweetBotTelegram.exception.CustomException;
 import com.egemen.TweetBotTelegram.repository.BotRepository;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
+import com.egemen.TweetBotTelegram.repository.UserRepository;
 import com.egemen.TweetBotTelegram.service.BotService;
 import com.egemen.TweetBotTelegram.service.NewsService;
-import com.egemen.TweetBotTelegram.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Implementation of BotService responsible for managing automated bots.
@@ -23,121 +27,60 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BotServiceImpl implements BotService {
 
-    private final BotRepository botRepository;
-    private final NewsRepository newsRepository;
-    private final NewsService newsService;
-    private final NotificationService notificationService;
+    @Autowired
+    private BotRepository botRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     public Bot createBot(Bot bot) {
-        log.info("🤖 Creating new bot with name: {}", bot.getName());
+        if(bot.getUser() == null || bot.getName() == null) {
+            throw new CustomException(new Exception("User and Bot Name are required"), HttpStatus.BAD_REQUEST);
+        }
         try {
             return botRepository.save(bot);
-        } catch (Exception e) {
-            log.error("❌ Error creating bot: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to create bot", e);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(e, HttpStatus.BAD_REQUEST);
+        }catch(Exception e) {
+            throw new CustomException(new Exception("Error creating bot" + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+
     }
 
     @Override
-    public void startBot(String chatId) {
-        log.info("▶️ Starting bot for chat ID: {}", chatId);
+    public List<Bot> listBots(Long userId) {
+        Optional<User> user = userRepository.findById(userId);
+        if(user.isEmpty()) {
+            throw new CustomException(new Exception("User not found"), HttpStatus.NOT_FOUND);
+        }
+        List<Bot> bots = botRepository.findAllByUser(user.get());
+        if(bots.isEmpty()) {
+            throw new CustomException(new Exception("No Bots found"), HttpStatus.NOT_FOUND);
+        }
+        return bots;
+    }
+
+    @Override
+    public void saveBot(Bot bot) {
         try {
-            notificationService.sendNotification(chatId, "✅ Bot started! Now fetching news automatically.");
+            botRepository.save(bot);
         } catch (Exception e) {
-            log.error("❌ Error starting bot: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to start bot", e);
+            throw new CustomException(e, HttpStatus.BAD_REQUEST);
         }
     }
 
     @Override
-    public void stopBot(String chatId) {
-        log.info("⏹ Stopping bot for chat ID: {}", chatId);
-        try {
-            notificationService.sendNotification(chatId, "🛑 Bot stopped! Automated fetching is disabled.");
-        } catch (Exception e) {
-            log.error("❌ Error stopping bot: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to stop bot", e);
+    public Bot getBotByUserId(Long userId) {
+        Optional<User> user = userRepository.findById(userId);
+        if(user.isEmpty()) {
+            throw new CustomException(new Exception("User not found"), HttpStatus.NOT_FOUND);
         }
+        return user.map(value -> botRepository.findByUser(value)).orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
     }
 
     @Override
-    public boolean isRunning(String chatId) {
-        // Add logic to track bot running status
-        log.info("Checking bot status for chat ID: {}", chatId);
-        return false; // Default return (Modify with real logic)
-    }
-
-    @Override
-    public int fetchLatestNews(String chatId) {
-        log.info("📰 Fetching latest news for chat ID: {}", chatId);
-        try {
-            List<News> newsEntities = newsService.getLatestNews(5);
-
-            List<NewsArticleDTO> newsList = newsEntities.stream()
-                    .map(this::convertToDTO)
-                    .toList();
-
-            notificationService.sendNotification(chatId, "✅ Found " + newsList.size() + " new articles!");
-            return newsList.size();
-        } catch (Exception e) {
-            log.error("❌ Error fetching news: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to fetch news", e);
-        }
-    }
-
-    @Override
-    public List<NewsArticleDTO> getLatestNews(String chatId, int limit) {
-        log.info("🔎 Retrieving {} latest news articles for chat ID: {}", limit, chatId);
-
-        return newsRepository.findTopByOrderByPublishedAtDesc(limit).stream()
-                .map(this::convertToDTO)
-                .toList();
-    }
-
-    @Override
-    public int getPendingPostsCount(String chatId) {
-        log.info("📌 Checking pending posts count for chat ID: {}", chatId);
-        try {
-            // Dummy count (Replace with actual implementation)
-            return 0;
-        } catch (Exception e) {
-            log.error("❌ Error getting pending posts count: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to get pending posts count", e);
-        }
-    }
-
-    @Override
-    public List<InstagramPost> getPendingPosts(String chatId) {
-        log.info("📌 Getting pending posts for chat ID: {}", chatId);
-        try {
-            // Replace with actual implementation
-            return List.of();
-        } catch (Exception e) {
-            log.error("❌ Error retrieving pending posts: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to retrieve pending posts", e);
-        }
-    }
-
-    @Override
-    public void publishPendingPosts(String chatId) {
-        log.info("📢 Publishing pending posts for chat ID: {}", chatId);
-        try {
-            notificationService.sendNotification(chatId, "✅ All pending posts have been published!");
-        } catch (Exception e) {
-            log.error("❌ Error publishing posts: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to publish posts", e);
-        }
-    }
-
-    private NewsArticleDTO convertToDTO(News news) {
-        return new NewsArticleDTO(
-                news.getTitle(),
-                news.getContent(),
-                news.getUrl(),
-                news.getImageUrl(),
-                news.getPublishedAt().toString(),
-                news.getSource()
-        );
+    public Bot getBotById(Long botId) {
+        return botRepository.findById(botId).orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
     }
 }

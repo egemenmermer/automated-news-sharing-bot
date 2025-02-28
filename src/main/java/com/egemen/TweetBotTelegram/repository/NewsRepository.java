@@ -1,6 +1,7 @@
 package com.egemen.TweetBotTelegram.repository;
 
 import com.egemen.TweetBotTelegram.entity.News;
+import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,16 +12,8 @@ import java.util.List;
 
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
-    @Query(value = "SELECT * FROM news ORDER BY published_at DESC LIMIT ?1", nativeQuery = true)
-    List<News> findTopByOrderByPublishedAtDesc(int limit);
-    List<News> findByProcessedFalse();
-    List<News> findByProcessedFalseAndPostedFalseOrderByCreatedAtDesc();
-    List<News> findByCreatedAtAfter(LocalDateTime date);
-    boolean existsByTitleAndContent(String title, String content);
+    List<News> findByIsProcessed(boolean isProcessed);
 
-    @Query("SELECT n FROM News n WHERE n.processed = false ORDER BY n.publishedAt DESC")
-    List<News> fetchLatestNews();
-
-    @Query("SELECT n FROM News n ORDER BY n.publishedAt DESC LIMIT :limit")
-    List<News> findLatestNewsByLimit(@Param("limit") int limit);
+    @Query("SELECT bc FROM News bc WHERE bc.status = :newsStatus")
+    List<News> findByStatus(@Param("newsStatus") NewsStatus newsStatus);
 }

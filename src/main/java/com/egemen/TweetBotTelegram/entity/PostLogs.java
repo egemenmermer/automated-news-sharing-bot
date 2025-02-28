@@ -19,9 +19,9 @@ public class PostLogs {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "bot_id", nullable = false)
-    private Bot botId;
+    @ManyToOne
+    @JoinColumn(name = "bot_id")
+    private Bot bot;
 
     @Column(name = "scheduled_at")
     private Timestamp scheduledAt;
@@ -29,15 +29,14 @@ public class PostLogs {
     @Column(name = "posted_at")
     private Timestamp postedAt;
 
-    @Column(nullable = false, name = "status")
+    @ManyToOne
+    @JoinColumn(name = "posted_tweet_id")
+    private Tweet postedTweet;
+
+    @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
-    private PostStatus status;
+    private PostStatus postStatus;
 
-    @Column(columnDefinition = "TEXT")
-    private String logMessage;
-
-    @Column(columnDefinition = "TEXT")
-    private String message;
-
-    private LocalDateTime createdAt;
+    @Column(name = "post_count")
+    private int postCount;
 }

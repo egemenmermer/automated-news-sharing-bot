@@ -1,16 +1,20 @@
 package com.egemen.TweetBotTelegram.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
 public class CustomException extends RuntimeException {
-    private final HttpStatus status;
-    private final String errorCode;
+    private DetailedError detailedError;
+    private String statusCode;
+    private HttpServletRequest request;
+    private HttpStatus status;
 
-    public CustomException(String message, HttpStatus status, String errorCode) {
-        super(message);
-        this.status = status;
-        this.errorCode = errorCode;
+    public CustomException(Exception e, HttpStatus status) {
+        super(e.getMessage());
+        this.detailedError = new DetailedError();
+        this.detailedError.setMessage(e.getMessage());
+        this.statusCode = status.toString();
     }
 }

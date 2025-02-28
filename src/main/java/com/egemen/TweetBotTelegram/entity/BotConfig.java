@@ -18,19 +18,21 @@ public class BotConfig {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long Id;
+    @Column(name = "id")
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "bot_id", nullable = false)
-    private Bot botId;
+    @ManyToOne
+    @JoinColumn(name = "bot_id")
+    private Bot bot;
 
-    @Column(nullable = false, name = "config_type")
-    private String configType;
+    @Column(name = "config_type", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ConfigType configType;
 
-    @Column(nullable = false, name = "config_value")
+    @Column(name = "config_value", nullable = false)
     private String configValue;
 
-    @Column(nullable = false, name = "created_at")
+    @Column(name = "created_at")
     private Timestamp createdAt;
 
 }

@@ -1,6 +1,9 @@
 package com.egemen.TweetBotTelegram.entity;
 
+import com.egemen.TweetBotTelegram.enums.LogType;
 import jakarta.persistence.*;
+
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Entity
@@ -10,31 +13,17 @@ public class BotLogs {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "bot_id")
-    private Long botId;
+    @ManyToOne
+    @JoinColumn(name = "bot_id")
+    private Bot bot;
 
-    @Column(name = "log_type")
-    private String logType; // Changed from Short to String to match VARCHAR in database
+    @Column(name = "log_type", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private LogType logType;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "log_message", nullable = false)
     private String logMessage;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    // Getters and Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public Long getBotId() { return botId; }
-    public void setBotId(Long botId) { this.botId = botId; }
-
-    public String getLogType() { return logType; }
-    public void setLogType(String logType) { this.logType = logType; }
-
-    public String getLogMessage() { return logMessage; }
-    public void setLogMessage(String logMessage) { this.logMessage = logMessage; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    private Timestamp createdAt;
 } 
