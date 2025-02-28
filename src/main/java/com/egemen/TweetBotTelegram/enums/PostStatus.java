@@ -2,6 +2,6 @@ package com.egemen.TweetBotTelegram.enums;
 
 public enum PostStatus {
     SCHEDULED,
-    POSTED,
+    SUCCESS,
     FAILED
 }
