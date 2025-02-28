@@ -1,0 +1,112 @@
+package com.egemen.TweetBotTelegram.service.Impl;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+@Service
+@RequiredArgsConstructor
+public class ImageSaver {
+    private static final String IMAGE_DIRECTORY = "src/main/resources/static/images";
+    private static final Logger logger = LoggerFactory.getLogger(ImageSaver.class);
+    private static int imageCounter = 1;
+
+    private S3Client s3Client;
+
+    @Value("${aws.access.key}")
+    private String accessKey;
+
+    @Value("${aws.secret.key}")
+    private String secretKey;
+
+    @Value("${aws.bucket.name}")
+    private String bucketName;
+
+    @PostConstruct
+    public void init() {
+        this.s3Client = S3Client.builder()
+                .region(Region.EU_NORTH_1)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(accessKey, secretKey)
+                ))
+                .build();
+    }
+
+    public String saveImageToFile(byte[] imageBytes) {
+        if (imageBytes == null || imageBytes.length == 0) {
+            throw new IllegalArgumentException("Image bytes cannot be null or empty");
+        }
+
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes)) {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy-HH:mm");
+            String timestamp = dateFormat.format(new Date());
+            String filename = timestamp + "-" + imageCounter++ + ".jpeg";
+
+            // Local save
+            File directory = new File(IMAGE_DIRECTORY);
+            if (!directory.exists() && !directory.mkdirs()) {
+                throw new IOException("Failed to create directory: " + IMAGE_DIRECTORY);
+            }
+
+            BufferedImage bufferedImage = ImageIO.read(inputStream);
+            if (bufferedImage == null) {
+                throw new IOException("Failed to read image data");
+            }
+
+            File localFile = new File(directory, filename);
+            if (!ImageIO.write(bufferedImage, "jpeg", localFile)) {
+                throw new IOException("Failed to write image file");
+            }
+
+            // Upload to S3
+            String imageUrl = uploadToS3(imageBytes, filename);
+            logger.info("Image uploaded successfully to S3: {}", imageUrl);
+
+            // dosyayı pc den sil
+            if (localFile.delete()) {
+                logger.info("Local file deleted: {}", localFile.getAbsolutePath());
+            } else {
+                logger.warn("Failed to delete local file: {}", localFile.getAbsolutePath());
+            }
+
+            return imageUrl;
+
+        } catch (IOException e) {
+            logger.error("Failed to process image: ", e);
+            throw new RuntimeException("Image processing failed", e);
+        }
+    }
+
+    private String uploadToS3(byte[] fileBytes, String fileName) {
+        try {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName)
+                    .contentType("image/jpeg")
+                    .build();
+
+            s3Client.putObject(request, RequestBody.fromBytes(fileBytes));
+            return String.format("https://%s.s3.amazonaws.com/%s", bucketName, fileName);
+        } catch (Exception e) {
+            logger.error("AWS S3 upload failed: ", e);
+            throw new RuntimeException("AWS S3 upload failed", e);
+        }
+    }
+}
