@@ -1,7 +1,6 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,27 +21,32 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 @Service
-@RequiredArgsConstructor
 public class ImageSaver {
     private static final String IMAGE_DIRECTORY = "src/main/resources/static/images";
     private static final Logger logger = LoggerFactory.getLogger(ImageSaver.class);
     private static int imageCounter = 1;
 
     private S3Client s3Client;
+    private final String accessKey;
+    private final String secretKey;
+    private final String bucketName;
+    private final String region;
 
-    @Value("${aws.access.key}")
-    private String accessKey;
-
-    @Value("${aws.secret.key}")
-    private String secretKey;
-
-    @Value("${aws.bucket.name}")
-    private String bucketName;
+    public ImageSaver(
+            @Value("${AWS_ACCESS_KEY}") String awsAccessKey,
+            @Value("${AWS_SECRET_KEY}") String awsSecretKey,
+            @Value("${AWS_S3_BUCKET}") String awsS3Bucket,
+            @Value("${AWS_REGION}") String awsRegion) {
+        this.accessKey = awsAccessKey;
+        this.secretKey = awsSecretKey;
+        this.bucketName = awsS3Bucket;
+        this.region = awsRegion;
+    }
 
     @PostConstruct
     public void init() {
         this.s3Client = S3Client.builder()
-                .region(Region.EU_NORTH_1)
+                .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)
                 ))
@@ -99,14 +103,14 @@ public class ImageSaver {
             PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(fileName)
-                    .contentType("image/jpeg")
                     .build();
 
             s3Client.putObject(request, RequestBody.fromBytes(fileBytes));
-            return String.format("https://%s.s3.amazonaws.com/%s", bucketName, fileName);
+
+            return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, fileName);
         } catch (Exception e) {
-            logger.error("AWS S3 upload failed: ", e);
-            throw new RuntimeException("AWS S3 upload failed", e);
+            logger.error("Failed to upload to S3: ", e);
+            throw new RuntimeException("S3 upload failed", e);
         }
     }
 }

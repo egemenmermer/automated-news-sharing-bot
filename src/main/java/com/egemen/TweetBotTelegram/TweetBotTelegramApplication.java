@@ -7,9 +7,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 public class TweetBotTelegramApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(TweetBotTelegramApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(TweetBotTelegramApplication.class, args);
+    }
 }

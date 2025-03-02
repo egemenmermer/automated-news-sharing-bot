@@ -1,261 +1,132 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.entity.News;
-import com.egemen.TweetBotTelegram.entity.SummarizedNews;
-import com.egemen.TweetBotTelegram.entity.Tweet;
-import com.egemen.TweetBotTelegram.enums.NewsStatus;
-import com.egemen.TweetBotTelegram.enums.SummarizedStatus;
-import com.egemen.TweetBotTelegram.enums.TweetStatus;
-import com.egemen.TweetBotTelegram.repository.NewsRepository;
-import com.egemen.TweetBotTelegram.repository.SummarizedNewsRepository;
-import com.egemen.TweetBotTelegram.repository.TweetsRepository;
 import com.egemen.TweetBotTelegram.service.GeminiService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+@Slf4j
 @Service
 public class GeminiServiceImpl implements GeminiService {
-    private String geminiApiKey="AIzaSyDZ77gvYg_yKJiMgkFUtRjPQh4xTmmJnL4";
-    private final String  GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-    private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-    private static final Logger logger = LoggerFactory.getLogger(GeminiServiceImpl.class);
+    @Value("${GEMINI_API_KEY}")
+    private String apiKey;
 
-    private LocalDateTime startTime = LocalDateTime.now();
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-pro/generateContent";
 
-
-    @Value("${gemini.client.id}")
-    private String clientId;
-    @Value("${gemini.client.secret}")
-    private String clientSecret;
-
-    @Autowired
-    private NewsRepository newsRepository;
-    @Autowired
-    private SummarizedNewsRepository summarizedNewsRepository;
-    @Autowired
-    private TweetsRepository tweetsRepository;
-
-    @Override
-    public void start() throws InterruptedException {
-        refreshAccessToken();
-        summarize();
-        generate();
+    public GeminiServiceImpl() {
+        this.restTemplate = new RestTemplate();
+        this.objectMapper = new ObjectMapper();
     }
+
     @Override
-    public String summarizeNews(String newsTitle, String newsContent) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
+    public String generateImagePrompt(String title, String content) throws Exception {
+        String prompt = String.format(
+            "Create a visually descriptive prompt for generating an image that represents this news article. " +
+            "The prompt should be detailed and focus on the key visual elements. " +
+            "Keep it under 100 words and make it suitable for an image generation AI.\n\n" +
+            "Title: %s\n\n" +
+            "Content: %s",
+            title, content
+        );
 
-        // Prepare request body to match the working curl structure
-        Map<String, Object> requestBody = new HashMap<>();
-        List<Map<String, Object>> contents = new ArrayList<>();
-        Map<String, Object> contentItem = new HashMap<>();
+        return generateResponse(prompt);
+    }
 
-        List<Map<String, Object>> parts = new ArrayList<>();
-        Map<String, Object> textPart = new HashMap<>();
-        textPart.put("text", "Summarize this news in one or two sentences, translate and write it only inde Turkish: " + newsTitle + " - " + newsContent);
-        parts.add(textPart);
+    @Override
+    public String generateSummary(String title, String content) throws Exception {
+        String prompt = String.format(
+            "Create an engaging and concise summary of this news article suitable for an Instagram caption. " +
+            "Keep it under 200 characters, make it attention-grabbing, and maintain a professional tone.\n\n" +
+            "Title: %s\n\n" +
+            "Content: %s",
+            title, content
+        );
 
-        contentItem.put("parts", parts);
-        contents.add(contentItem);
-        requestBody.put("contents", contents);
+        return generateResponse(prompt);
+    }
 
-        // Build the URL with API key
-        String url = GEMINI_ENDPOINT + "?key=" + geminiApiKey;
-
-        // Prepare HTTP entity
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        // Create RestTemplate with error handler
-        RestTemplate restTemplate = new RestTemplate();
-
+    @Override
+    public String generateResponse(String prompt) throws Exception {
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            Map<String, Object> textPart = new HashMap<>();
+            textPart.put("text", prompt);
 
-            // Log response for debugging
-            System.out.println("Response: " + response.getBody());
+            Map<String, Object> message = new HashMap<>();
+            message.put("role", "user");
+            message.put("parts", List.of(textPart));
 
-            // Check for valid response
-            if (response.getBody() != null && response.getBody().containsKey("candidates")) {
-                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
-                if (!candidates.isEmpty()) {
-                    Map<String, Object> contentResponse = (Map<String, Object>) candidates.get(0).get("content");
-                    List<Map<String, Object>> partsList = (List<Map<String, Object>>) contentResponse.get("parts");
-                    if (!partsList.isEmpty()) {
-                        return partsList.get(0).get("text").toString();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error calling Gemini API: " + e.getMessage());
-            return "Error generating summary: " + e.getMessage();
-        }
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", List.of(message));
+            requestBody.put("safetySettings", List.of(
+                Map.of(
+                    "category", "HARM_CATEGORY_HARASSMENT",
+                    "threshold", "BLOCK_NONE"
+                ),
+                Map.of(
+                    "category", "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold", "BLOCK_NONE"
+                ),
+                Map.of(
+                    "category", "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold", "BLOCK_NONE"
+                ),
+                Map.of(
+                    "category", "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold", "BLOCK_NONE"
+                )
+            ));
 
-        return "Error generating summary.";
-    }
-
-
-
-
-    @Override
-    public String generateTweet(String newsSummary) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
-
-        // Prepare request body to match the working structure
-        Map<String, Object> requestBody = new HashMap<>();
-        List<Map<String, Object>> contents = new ArrayList<>();
-        Map<String, Object> contentItem = new HashMap<>();
-
-        List<Map<String, Object>> parts = new ArrayList<>();
-        Map<String, Object> textPart = new HashMap<>();
-        textPart.put("text", "Generate a short, engaging tweet (maximum 280 characters) about this news only in Turkish(if not): " + newsSummary);
-        parts.add(textPart);
-
-        contentItem.put("parts", parts);
-        contents.add(contentItem);
-        requestBody.put("contents", contents);
-
-        // Build the URL with API key
-        String url = GEMINI_ENDPOINT + "?key=" + geminiApiKey;
-
-        // Prepare HTTP entity
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        // Create RestTemplate
-        RestTemplate restTemplate = new RestTemplate();
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-
-            // Log response for debugging
-            System.out.println("Response: " + response.getBody());
-
-            // Check for valid response
-            if (response.getBody() != null && response.getBody().containsKey("candidates")) {
-                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
-                if (!candidates.isEmpty()) {
-                    Map<String, Object> contentResponse = (Map<String, Object>) candidates.get(0).get("content");
-                    List<Map<String, Object>> partsList = (List<Map<String, Object>>) contentResponse.get("parts");
-                    if (!partsList.isEmpty()) {
-                        return partsList.get(0).get("text").toString();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error calling Gemini API: " + e.getMessage());
-            return "Error generating tweet: " + e.getMessage();
-        }
-
-        return "Error generating tweet.";
-    }
-
-
-    @Override
-
-    public List<SummarizedNews> summarize() throws InterruptedException {
-        List<News> newsList = newsRepository.findByStatus(NewsStatus.NOT_SUMMARIZED);
-        if (newsList.isEmpty()) {
-            throw new RuntimeException("No news to summarize found.");
-        }
-        for (News news : newsList) {
-            if (news.isProcessed()) {
-                continue;
-            }
-            String summary = summarizeNews(news.getTitle(), news.getContent());
-            SummarizedNews summarizedNews = new SummarizedNews();
-            summarizedNews.setBot(news.getBot());
-            summarizedNews.setNews(news);
-            summarizedNews.setSummarizedAt(Timestamp.valueOf(LocalDateTime.now()));
-
-            if (!summary.equals("Error generating summary.")) {
-                summarizedNews.setContent(summary);
-                summarizedNews.setStatus(SummarizedStatus.SUMMARIZED);
-                news.setStatus(NewsStatus.SUMMARIZED);
-                news.setProcessed(true);
-            } else {
-                summarizedNews.setContent(null);
-                summarizedNews.setStatus(SummarizedStatus.FAILED);
-            }
-            summarizedNewsRepository.save(summarizedNews);
-            newsRepository.save(news);
-            Thread.sleep(300);
-        }
-        return summarizedNewsRepository.findByStatus(SummarizedStatus.SUMMARIZED);
-    }
-
-    @Override
-    public List<Tweet> generate() throws InterruptedException {
-        List<SummarizedNews> summarizedNewsList = summarizedNewsRepository.findByStatus(SummarizedStatus.SUMMARIZED);
-        if (summarizedNewsList.isEmpty()) {
-            throw new RuntimeException("No summarized news to generate tweets from.");
-        }
-        for (SummarizedNews summarizedNews : summarizedNewsList) {
-            String tweet = generateTweet(summarizedNews.getContent());
-            Tweet tweetRecord = new Tweet();
-            tweetRecord.setBot(summarizedNews.getBot());
-            tweetRecord.setNews(summarizedNews.getNews());
-            tweetRecord.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
-
-            if (!tweet.startsWith("Error") || !tweet.startsWith("429")) {
-                tweetRecord.setContent(tweet);
-                tweetRecord.setStatus(TweetStatus.GENERATED);
-            } else {
-                tweetRecord.setContent(null);
-                tweetRecord.setStatus(TweetStatus.FAILED);
-            }
-            tweetsRepository.save(tweetRecord);
-            Thread.sleep(300);
-        }
-
-        return tweetsRepository.findByStatus(TweetStatus.GENERATED);
-    }
-    @Override
-    public void refreshAccessToken() {
-        RestTemplate restTemplate = new RestTemplate();
-
-        // Request body to refresh token
-        Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("client_id", clientId);
-        requestBody.put("client_secret", clientSecret);
-        requestBody.put("refresh_token", geminiApiKey);
-        requestBody.put("grant_type", "refresh_token");
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.exchange(TOKEN_URL, HttpMethod.POST, entity, Map.class);
+            String url = GEMINI_API_URL + "?key=" + apiKey;
+            
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                request,
+                String.class
+            );
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                geminiApiKey = (String) response.getBody().get("access_token");
-                System.out.println("Token successfully refreshed");
+                JsonNode jsonResponse = objectMapper.readTree(response.getBody());
+                return extractTextFromResponse(jsonResponse);
             }
+
+            throw new Exception("Failed to generate content from Gemini API");
         } catch (Exception e) {
-            logger.error("Error refreshing access token: {}", e.getMessage());
+            log.error("Error generating content from Gemini API: {}", e.getMessage());
+            throw new Exception("Failed to generate content: " + e.getMessage());
         }
     }
 
-    @Override
-    @Scheduled(cron = "0 0 0 1/30 * *")
-    public void checkAndRefreshToken() {
-        if (ChronoUnit.DAYS.between(startTime, LocalDateTime.now()) >= 30) {
-            refreshAccessToken();
-            startTime = LocalDateTime.now();
+    private String extractTextFromResponse(JsonNode response) {
+        try {
+            return response
+                .path("candidates")
+                .get(0)
+                .path("content")
+                .path("parts")
+                .get(0)
+                .path("text")
+                .asText()
+                .trim();
+        } catch (Exception e) {
+            log.error("Error extracting text from Gemini API response: {}", e.getMessage());
+            return "";
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
+import com.egemen.TweetBotTelegram.dto.ArticleDTO;
 import com.egemen.TweetBotTelegram.dto.NewsResponseDTO;
 import com.egemen.TweetBotTelegram.entity.Bot;
 import com.egemen.TweetBotTelegram.entity.FetchLogs;
@@ -11,52 +12,50 @@ import com.egemen.TweetBotTelegram.repository.BotConfigRepository;
 import com.egemen.TweetBotTelegram.repository.BotRepository;
 import com.egemen.TweetBotTelegram.repository.FetchLogsRepository;
 import com.egemen.TweetBotTelegram.repository.NewsRepository;
-import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.NewsService;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
-/**
- * Implementation of NewsService responsible for fetching and processing news.
- */
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class NewsServiceImpl implements NewsService {
 
-    @Value("${mediastack.api.key}")
+    @Value("${MEDIASTACK_API_KEY}")
     private String mediaStackApiKey;
-
-    private final String mediaStackApiUrl = "http://api.mediastack.com/v1/news";
-
-    private static final Logger log = LogManager.getLogger(NewsServiceImpl.class);
-
-    @Autowired
-    private NewsRepository newsRepository;
+    private final NewsRepository newsRepository;
+    private final BotRepository botsRepository;
+    private final FetchLogsRepository fetchLogsRepository;
+    private final BotConfigRepository botConfigurationRepository;
+    private static final String mediaStackApiUrl = "http://api.mediastack.com/v1/news";
 
     @Autowired
-    private BotRepository botsRepository;
-
-    @Autowired
-    private FetchLogsRepository fetchLogsRepository;
-
-    @Autowired
-    private BotConfigRepository botConfigurationRepository;
-
+    public NewsServiceImpl(NewsRepository newsRepository,
+                         BotRepository botsRepository,
+                         FetchLogsRepository fetchLogsRepository,
+                         BotConfigRepository botConfigurationRepository) {
+        this.newsRepository = newsRepository;
+        this.botsRepository = botsRepository;
+        this.fetchLogsRepository = fetchLogsRepository;
+        this.botConfigurationRepository = botConfigurationRepository;
+    }
 
     @Override
     public List<News> fetchAndSaveNews(Long botId, boolean isTR) {
@@ -71,12 +70,11 @@ public class NewsServiceImpl implements NewsService {
         if (isTR) {
             url = mediaStackApiUrl + "?access_key=" + mediaStackApiKey +
                     "&categories=" + topic +
-                    "&languages=en" +
+                    "&languages=tr" +
                     "&limit=" + limit;
         } else {
             url = mediaStackApiUrl + "?access_key=" + mediaStackApiKey +
                     "&categories=" + topic +
-                    "&countries=tr" +
                     "&languages=en" +
                     "&limit=" + limit;
         }
@@ -87,21 +85,43 @@ public class NewsServiceImpl implements NewsService {
         int retryCount = 0;
         String botRetryCount = (getBotConfig(bot, ConfigType.MAX_RETRIES));
         int maxRetries = botRetryCount == null ? 3 : Integer.parseInt(botRetryCount);
-        int waitTime = 5000; // Başlangıç bekleme süresi 5 san,ye
+        int waitTime = 5000;
 
         while (retryCount <= maxRetries) {
             try {
                 RestTemplate restTemplate = new RestTemplate();
-                ResponseEntity<NewsResponseDTO> response = restTemplate.getForEntity(url, NewsResponseDTO.class);
+                restTemplate.setErrorHandler(new ResponseErrorHandler() {
+                    @Override
+                    public boolean hasError(ClientHttpResponse response) throws IOException {
+                        return false;
+                    }
 
-                if (response.getBody() == null || response.getBody().getArticles() == null) {
-                    log.warn("No news articles found in API response for bot: {}", botId);
+                    @Override
+                    public void handleError(ClientHttpResponse response) throws IOException {
+                    }
+                });
+
+                log.info("Making request to URL: {}", url);
+                ResponseEntity<String> rawResponse = restTemplate.getForEntity(url, String.class);
+                log.info("Raw response: {}", rawResponse.getBody());
+
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                mapper.registerModule(new JavaTimeModule());
+                
+                JsonNode root = mapper.readTree(rawResponse.getBody());
+                JsonNode dataNode = root.get("data");
+                
+                if (dataNode == null || !dataNode.isArray()) {
+                    log.warn("No 'data' array found in response for bot: {}", botId);
                     return Collections.emptyList();
                 }
 
-                List<News> articles = response.getBody().getArticles().stream()
-                        .filter(article -> article.getTitle() != null && !article.getTitle().isEmpty())
-                        .map(article -> {
+                List<News> articles = new ArrayList<>();
+                for (JsonNode articleNode : dataNode) {
+                    try {
+                        ArticleDTO article = mapper.treeToValue(articleNode, ArticleDTO.class);
+                        if (article.getTitle() != null && !article.getTitle().isEmpty()) {
                             Timestamp publishedAt = new Timestamp(System.currentTimeMillis());
                             if (article.getPublishedAt() != null) {
                                 try {
@@ -111,38 +131,50 @@ public class NewsServiceImpl implements NewsService {
                                             article.getTitle(), e);
                                 }
                             }
-                            return new News(
+                            News news = new News(
                                     bot,
                                     StringEscapeUtils.unescapeHtml4(article.getTitle()),
                                     article.getDescription() != null ? StringEscapeUtils.unescapeHtml4(article.getDescription()) : "",
+                                    article.getSource() != null ? article.getSource() : "Unknown",
                                     publishedAt,
-                                    NewsStatus.NOT_SUMMARIZED
+                                    NewsStatus.PENDING
                             );
-                        })
-                        .collect(Collectors.toList());
-                FetchLogs fetchLog = new FetchLogs(bot, new Timestamp(System.currentTimeMillis()), FetchStatus.SUCCESS, articles.size());
-                fetchLogsRepository.save(fetchLog);
+                            articles.add(news);
+                            log.info("Added article: {}", article.getTitle());
+                        }
+                    } catch (Exception e) {
+                        log.error("Error processing article: {}", e.getMessage(), e);
+                    }
+                }
 
-                log.info("Successfully fetched {} articles for bot {}. Saving to database.", articles.size(), botId);
-                return newsRepository.saveAll(articles);
+                if (!articles.isEmpty()) {
+                    log.info("Saving {} articles to database", articles.size());
+                    articles = newsRepository.saveAll(articles);
+                    FetchLogs fetchLog = new FetchLogs(bot, new Timestamp(System.currentTimeMillis()), FetchStatus.SUCCESS, articles.size());
+                    fetchLogsRepository.save(fetchLog);
+                    return articles;
+                } else {
+                    log.warn("No valid articles found in response");
+                    FetchLogs fetchLog = new FetchLogs(bot, new Timestamp(System.currentTimeMillis()), FetchStatus.SUCCESS, 0);
+                    fetchLogsRepository.save(fetchLog);
+                    return Collections.emptyList();
+                }
 
             } catch (Exception e) {
                 log.error("Error fetching news for bot {}: {}", botId, e.getMessage(), e);
                 FetchLogs fetchLog = new FetchLogs(bot, new Timestamp(System.currentTimeMillis()), FetchStatus.FAILED, 0);
                 fetchLogsRepository.save(fetchLog);
 
-                // Retry logic
                 retryCount++;
                 if (retryCount > maxRetries) {
                     log.error("Max retries reached for bot {}. Giving up.", botId);
                     throw new RuntimeException("Failed to fetch news after " + maxRetries + " retries", e);
                 }
 
-                // Exponential backoff: Bekleme süresi her denemede artar
-                int currentWaitTime = waitTime * (int) Math.pow(2, retryCount - 1);  // 5, 10, 20
+                int currentWaitTime = waitTime * (int) Math.pow(2, retryCount - 1);
                 log.info("Retrying... Attempt {}/{}. Waiting for {} seconds...", retryCount, maxRetries, currentWaitTime / 1000);
                 try {
-                    Thread.sleep(currentWaitTime);  // İlgili süre kadar bekle
+                    Thread.sleep(currentWaitTime);
                 } catch (InterruptedException interruptedException) {
                     log.error("Retry sleep interrupted for bot {}", botId);
                     Thread.currentThread().interrupt();
@@ -157,5 +189,10 @@ public class NewsServiceImpl implements NewsService {
         return botConfigurationRepository.findConfigValueByBotIdAndConfigType(bot, configType)
                 .orElseThrow(() -> new RuntimeException(
                         String.format("Configuration %s not found for bot %d", configType, bot)));
+    }
+
+    @Override
+    public List<News> getAllNews() {
+        return newsRepository.findAll();
     }
 }

@@ -1,6 +1,7 @@
 package com.egemen.TweetBotTelegram.enums;
 
 public enum SummarizedStatus {
-    SUMMARIZED,
+    PENDING,
+    COMPLETED,
     FAILED
 }

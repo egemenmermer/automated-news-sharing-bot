@@ -5,15 +5,20 @@ import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
-    List<News> findByIsProcessed(boolean isProcessed);
+    List<News> findByStatus(NewsStatus status);
 
-    @Query("SELECT bc FROM News bc WHERE bc.status = :newsStatus")
-    List<News> findByStatus(@Param("newsStatus") NewsStatus newsStatus);
+    @Query("SELECT n FROM News n WHERE n.status = :newsStatus ORDER BY n.publishedAt DESC")
+    List<News> findLatestByStatus(@Param("newsStatus") NewsStatus newsStatus);
+
+    @Query(value = "SELECT n FROM News n WHERE n.status = :status ORDER BY n.publishedAt DESC")
+    List<News> findByStatus(@Param("status") NewsStatus status, Pageable pageable);
+    
+    List<News> findByStatusOrderByPublishedAtDesc(NewsStatus status);
 }

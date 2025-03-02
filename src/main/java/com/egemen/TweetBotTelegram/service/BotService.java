@@ -5,13 +5,13 @@ import com.egemen.TweetBotTelegram.entity.Bot;
 import java.util.List;
 
 /**
- * Service for managing bot operations such as starting, stopping,
- * fetching news, and handling pending posts.
+ * Service for managing bot operations such as creating, updating,
+ * and retrieving bots.
  */
 public interface BotService {
     Bot createBot(Bot bot);
-    List<Bot> listBots(Long userId);
+    List<Bot> listBots();
     void saveBot(Bot bot);
-    Bot getBotByUserId(Long userId);
+    Bot getBotByName(String name);
     Bot getBotById(Long botId);
 }

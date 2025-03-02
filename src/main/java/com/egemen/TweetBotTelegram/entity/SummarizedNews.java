@@ -26,8 +26,8 @@ public class SummarizedNews {
     @JoinColumn(name = "news_id")
     private News news;
 
-    @Column(name = "content")
-    private String content;
+    @Column(name = "summary")
+    private String summary;
 
     @Column(name = "summarized_at")
     private Timestamp summarizedAt;
@@ -38,5 +38,4 @@ public class SummarizedNews {
 
     @Column(name = "summarized_count")
     private int summarizedCount;
-
 }

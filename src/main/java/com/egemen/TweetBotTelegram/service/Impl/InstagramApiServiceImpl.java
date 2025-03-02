@@ -1,229 +1,144 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.entity.Bot;
-import com.egemen.TweetBotTelegram.entity.News;
-import com.egemen.TweetBotTelegram.entity.PostLogs;
-import com.egemen.TweetBotTelegram.entity.Tweet;
+import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
-import com.egemen.TweetBotTelegram.enums.TweetStatus;
-import com.egemen.TweetBotTelegram.exception.InstagramApiException;
-import com.egemen.TweetBotTelegram.repository.BotRepository;
-import com.egemen.TweetBotTelegram.repository.PostLogsRepository;
-import com.egemen.TweetBotTelegram.repository.TweetsRepository;
-import com.egemen.TweetBotTelegram.service.ImageService;
+import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.ByteArrayOutputStream;
-import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
+@Slf4j
 @Service
 public class InstagramApiServiceImpl implements InstagramApiService {
 
-    private static final Logger logger = LoggerFactory.getLogger(InstagramApiServiceImpl.class);
-    private static final int MAX_CAPTION_LENGTH = 2200;
+    @Value("${INSTAGRAM_ACCESS_TOKEN}")
+    private String accessToken;
 
-    @Value("${instagram.client.id}")
-    private String clientId;
+    @Value("${INSTAGRAM_USERID}")
+    private String userId;
 
-    @Value("${instagram.client.secret}")
-    private String clientSecret;
+    private final RestTemplate restTemplate;
+    private final InstagramPostRepository instagramPostRepository;
 
-    private String accessToken="IGAAXmZBgTZAeeNBZAE9ON2xrbW80dnNTalk5T1BocThsV0VLUGJ3NHV3ZAFFFcFlaNnQ3ZAEt5TXV0MWc1TlhVXzRSYmF0Ym1tZAmZAxTUJKVGN5eUJGd3c0WFpaZAndHdlloN3dtMWQ2V1doaFVxajlvU2JENk5Uc2JZANWN2bVZAKeVRGVQZDZD";
-
-    private LocalDateTime startTime = LocalDateTime.now();
-
-    @Autowired
-    private TweetsRepository tweetsRepository;
-
-    @Autowired
-    private PostLogsRepository postLogsRepository;
-
-    @Autowired
-    private ImageService imageService;
-
-    @Autowired
-    private ImageSaver imageSaver;
-
-    @Autowired
-    private BotRepository botsRepository;
-
-    @Value("${instagram.user.id}")
-    private String instagramUserId;
-    private final RestTemplate restTemplate = new RestTemplate();
-
-    static int postCount = 1;
-
-    @Override
-    public void processAndPostToInstagram(int botId) {
-        checkAndRefreshToken();
-        Bot bot = botsRepository.findById((long) botId)
-                .orElseThrow(() -> new RuntimeException("Bot not found"));
-        List<Tweet> generatedTweets = tweetsRepository.findByStatusAndBot(TweetStatus.GENERATED, bot);
-
-        if(generatedTweets.isEmpty()){
-            logger.info("No generated tweets found to process");
-            return;
-        }
-
-
-        for (Tweet tweet : generatedTweets) {
-            try {
-                ByteArrayOutputStream imageStream = new ByteArrayOutputStream();
-                imageService.generateImageFromText(tweet.getContent(), imageStream);
-                byte[] imageBytes = imageStream.toByteArray();
-                String imageUrl = imageSaver.saveImageToFile(imageBytes); // Dosya kaydet
-                Optional<News> news = tweetsRepository.findNewsByTweetId(tweet.getId());
-                if(news.isEmpty()){
-                    logger.error("News not found for tweet ID: {}", tweet.getId());
-                    continue;
-                }
-
-                // Instagram'a yükle
-                String mediaId = uploadImageToInstagram(imageUrl, formatCaption(news.get().getTitle()) + ": " + formatCaption(news.get().getContent()));
-                if (mediaId == null) {
-                    logger.error("Failed to upload image for tweet ID: {}", tweet.getId());
-                    continue;
-                }else{
-                    logger.info("Successfully uploaded image for tweet ID: {}", tweet.getId());
-                }
-
-
-                // Gönderiyi paylaş
-                boolean posted = publishPost(mediaId);
-
-                if (posted) {
-                    tweet.setStatus(TweetStatus.POSTED);
-                    tweetsRepository.save(tweet);
-                    createPostLog(bot, postCount, tweet);
-                    postCount++;
-                    logger.info("Successfully posted to Instagram, Tweet ID: {}", tweet.getId());
-                }else {
-                    logger.error("Failed to post to Instagram, Tweet ID: {}", tweet.getId());
-                }
-
-                Thread.sleep(1000);
-
-            } catch (Exception e) {
-                logger.error("Error posting to Instagram, Tweet ID {}: {}", tweet.getId(), e.getMessage());
-                handlePostingError(tweet, e);
-            }
-        }
+    public InstagramApiServiceImpl(InstagramPostRepository instagramPostRepository) {
+        this.restTemplate = new RestTemplate();
+        this.instagramPostRepository = instagramPostRepository;
     }
 
-
-
-
     @Override
-    public String uploadImageToInstagram(String imageUrl, String caption) throws InstagramApiException {
-        String url = "https://graph.instagram.com/v22.0/me/media";
-
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(accessToken);
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("image_url", imageUrl);
-        requestBody.put("caption", caption);
-
-        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
-
+    public boolean createPost(InstagramPost post) {
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
-
-            if (response.getBody() != null && response.getBody().containsKey("id")) {
-                // Doğrudan String olarak al
-                return (String) response.getBody().get("id");
-            }
-            throw new InstagramApiException("Failed to upload image");
-        } catch (HttpClientErrorException e) {
-            logger.error("Response body: " + e.getResponseBodyAsString());
-            throw new InstagramApiException("Instagram API error: " + e.getMessage());
-        }
-    }
-    @Override
-    public boolean publishPost(String mediaId) {
-        String url = "https://graph.instagram.com/v22.0/" + instagramUserId + "/media_publish";
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("creation_id", new BigInteger(mediaId));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(accessToken);
-
-        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
-            return response.getStatusCode() == HttpStatus.OK;
-        } catch (HttpClientErrorException e) {
-            logger.error("Instagram API error: {}", e.getMessage());
-            logger.error("Response body: {}", e.getResponseBodyAsString());
+            log.info("Creating Instagram post with caption: {}", post.getCaption());
+            
+            // Use the publishPost method to avoid code duplication
+            publishPost(post);
+            return true;
+        } catch (Exception e) {
+            log.error("Error creating Instagram post: {}", e.getMessage());
+            post.setPostStatus(PostStatus.FAILED);
+            post.setErrorMessage(e.getMessage());
+            post.setRetryCount(post.getRetryCount() + 1);
+            instagramPostRepository.save(post);
             return false;
         }
     }
 
-    private String formatCaption(String caption) {
-        if (caption.length() > MAX_CAPTION_LENGTH) {
-            return caption.substring(0, MAX_CAPTION_LENGTH - 3) + "...";
+    @Override
+    public String uploadImage(String imageUrl) throws Exception {
+        try {
+            String url = String.format("https://graph.facebook.com/v18.0/%s/media", userId);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("image_url", imageUrl);
+            requestBody.put("access_token", accessToken);
+            requestBody.put("is_carousel_item", false);
+            
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return (String) response.getBody().get("id");
+            }
+            
+            throw new Exception("Failed to get media ID from response");
+        } catch (Exception e) {
+            log.error("Error uploading image to Instagram: {}", e.getMessage());
+            throw e;
         }
-        return caption;
     }
 
-    public void handlePostingError(Tweet tweet, Exception e) {
-        tweet.setRetryCount(tweet.getRetryCount() - 1);
-        if (tweet.getRetryCount() <= 0) {
-            tweet.setStatus(TweetStatus.FAILED);
-        } else {
-            tweet.setStatus(TweetStatus.IN_PROGRESS);
-            tweet.setScheduledAt(Timestamp.valueOf(LocalDateTime.now().plusMinutes(30)));
+    @Override
+    public void publishPost(InstagramPost post) throws Exception {
+        try {
+            // Get the media ID from uploadImage if not already done in createPost
+            String mediaId = uploadImage(post.getImageUrl());
+            String url = String.format("https://graph.facebook.com/v18.0/%s/media_publish", userId);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("creation_id", mediaId);
+            requestBody.put("access_token", accessToken);
+            requestBody.put("caption", post.getCaption());
+            
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String instagramPostId = (String) response.getBody().get("id");
+                post.setInstagramPostId(instagramPostId);
+                post.setPostStatus(PostStatus.PUBLISHED);
+                post.setPostedAt(Timestamp.valueOf(LocalDateTime.now()));
+                instagramPostRepository.save(post);
+                log.info("Successfully published post to Instagram with ID: {}", instagramPostId);
+            } else {
+                throw new Exception("Failed to publish post to Instagram");
+            }
+        } catch (Exception e) {
+            log.error("Error publishing post to Instagram: {}", e.getMessage());
+            throw e;
         }
-        tweetsRepository.save(tweet);
     }
 
-    public void createPostLog(Bot bot, int postCount, Tweet tweet) {
-        PostLogs postLog = new PostLogs();
-        postLog.setBot(bot);
-        postLog.setPostedTweet(tweet);
-        postLog.setPostStatus(PostStatus.SUCCESS);
-        postLog.setPostCount(postCount);
-        postLog.setPostedAt(Timestamp.valueOf(LocalDateTime.now()));
-        postLogsRepository.save(postLog);
+    @Override
+    public void deletePost(String mediaId) throws Exception {
+        try {
+            String url = String.format("https://graph.facebook.com/v18.0/%s", mediaId);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("access_token", accessToken);
+            
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.DELETE, request, Map.class);
+            
+            if (response.getStatusCode() != HttpStatus.OK) {
+                throw new Exception("Failed to delete post from Instagram");
+            }
+            
+            log.info("Successfully deleted post from Instagram");
+        } catch (Exception e) {
+            log.error("Error deleting post from Instagram: {}", e.getMessage());
+            throw e;
+        }
     }
 
-    public void refreshAccessToken() {
-        String url = "https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=" + accessToken;
-        // API isteği yapılacak, yeni token alınacak ve accessToken değişkenine atılacak
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
-        if (response.getBody() != null && response.getBody().containsKey("access_token")) {
-            accessToken = (String) response.getBody().get("access_token");
-            logger.info("Token successfully refreshed");
-        }
-    }
-    @Scheduled(cron = "0 0 0 1/30 * *")
-    public void checkAndRefreshToken() {
-        if (ChronoUnit.DAYS.between(startTime, LocalDateTime.now()) >= 30) {
-            refreshAccessToken();
-            startTime = LocalDateTime.now();
-        }
+    @Override
+    public InstagramPost getPostById(Long id) {
+        return instagramPostRepository.findById(id).orElse(null);
     }
 }

@@ -1,15 +1,8 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.service.ImageService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -19,10 +12,7 @@ import javax.imageio.stream.ImageOutputStream;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URL;
-import java.io.ByteArrayInputStream;
 import java.util.Iterator;
 
 @Service
@@ -93,6 +83,4 @@ public class ImageServiceImpl implements ImageService {
         writer.dispose();
         ios.close();
     }
-
-
 }

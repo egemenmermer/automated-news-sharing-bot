@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.controller;
 
+import com.egemen.TweetBotTelegram.dto.NewsListDTO;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,8 +19,11 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/news")
 public class NewsController {
 
-    @Autowired
-    private NewsService newsService;
+    private final NewsService newsService;
+
+    public NewsController(NewsService newsService) {
+        this.newsService = newsService;
+    }
 
     @GetMapping("/fetch")
     @Operation(summary = "Fetch News")
@@ -72,6 +76,24 @@ public class NewsController {
                 .collect(Collectors.toList());
 
         // DTO listesine ResponseEntity ile dönüş yap
+        return ResponseEntity.ok(newsListDTO);
+    }
+
+    @GetMapping("/list")
+    @Operation(summary = "List all news")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "News listed successfully"),
+            @ApiResponse(responseCode = "500", description = "Server error occurred")})
+    public ResponseEntity<List<NewsListDTO>> listNews() {
+        List<News> newsList = newsService.getAllNews();
+        List<NewsListDTO> newsListDTO = newsList.stream()
+                .map(news -> new NewsListDTO(
+                        news.getTitle(),
+                        news.getContent(),
+                        news.getPublishedAt(),
+                        news.getStatus()
+                ))
+                .collect(Collectors.toList());
         return ResponseEntity.ok(newsListDTO);
     }
 }

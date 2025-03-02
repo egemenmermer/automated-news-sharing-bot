@@ -2,11 +2,17 @@ package com.egemen.TweetBotTelegram.entity;
 
 import com.egemen.TweetBotTelegram.enums.LogType;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "bot_logs")
 public class BotLogs {
     @Id
@@ -26,4 +32,4 @@ public class BotLogs {
 
     @Column(name = "created_at")
     private Timestamp createdAt;
-} 
+}

@@ -1,11 +1,7 @@
 package com.egemen.TweetBotTelegram.controller;
 
+import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,19 +9,33 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/instagram")
 public class InstagramController {
 
-    @Autowired
-    private InstagramApiService instagramApiService;
+    private final InstagramApiService instagramApiService;
 
-    @PostMapping("/post")
-    @Operation(summary = "Post to Instagram")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Tweet generated successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid input"),
-            @ApiResponse(responseCode = "500", description = "Network error occurred")})
-    public ResponseEntity<String> processAndPostToInstagram(
-            @Parameter(description = "Bot Id for Instagram Posting", required = true)
-            @RequestParam Long botId) {
-        instagramApiService.processAndPostToInstagram(botId.intValue());
-        return ResponseEntity.ok("Posted");
+    public InstagramController(InstagramApiService instagramApiService) {
+        this.instagramApiService = instagramApiService;
+    }
+
+    @PostMapping("/publish/{postId}")
+    public ResponseEntity<String> publishPost(@PathVariable Long postId) {
+        try {
+            InstagramPost post = instagramApiService.getPostById(postId);
+            if (post == null) {
+                return ResponseEntity.notFound().build();
+            }
+            instagramApiService.publishPost(post);
+            return ResponseEntity.ok("Post published successfully");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error publishing post: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{mediaId}")
+    public ResponseEntity<String> deletePost(@PathVariable String mediaId) {
+        try {
+            instagramApiService.deletePost(mediaId);
+            return ResponseEntity.ok("Post deleted successfully");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error deleting post: " + e.getMessage());
+        }
     }
 }

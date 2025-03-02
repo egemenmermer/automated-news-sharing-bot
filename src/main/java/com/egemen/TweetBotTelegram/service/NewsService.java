@@ -14,4 +14,5 @@ public interface NewsService {
 
     List<News> fetchAndSaveNews(Long botId, boolean isTR);
     String getBotConfig(Bot bot, ConfigType configType);
+    List<News> getAllNews();
 }

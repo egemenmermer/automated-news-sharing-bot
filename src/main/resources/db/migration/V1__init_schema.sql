@@ -2,13 +2,15 @@
 CREATE TABLE bots (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
-    api_key VARCHAR(255) NOT NULL,
-    api_secret VARCHAR(255) NOT NULL,
     instagram_username VARCHAR(255),
     instagram_password VARCHAR(255),
     instagram_access_token TEXT,
+    instagram_user_id VARCHAR(255),
     pexels_api_key VARCHAR(255),
     mediastack_api_key VARCHAR(255),
+    gemini_api_key VARCHAR(255),
+    telegram_bot_username VARCHAR(255),
+    telegram_bot_token VARCHAR(255),
     fetch_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     post_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '30 minutes',
     last_run TIMESTAMP
@@ -23,10 +25,11 @@ CREATE TABLE news (
     description TEXT,
     image_url TEXT,
     generated_image_path TEXT,
+    source VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'UNPROCESSED',
     published_at TIMESTAMP NOT NULL,
-    processed BOOLEAN NOT NULL DEFAULT FALSE,
-    posted BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_news_status CHECK (status IN ('UNPROCESSED', 'PROCESSED', 'PENDING', 'FAILED', 'DELETED'))
 );
 
 -- Create instagram_posts table
@@ -75,10 +78,10 @@ CREATE TABLE post_logs (
     status VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
     log_message TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_post_status CHECK (status IN ('SUCCESS', 'FAILED'))
+    CONSTRAINT chk_post_log_status CHECK (status IN ('SUCCESS', 'FAILED'))
 );
 
 -- Create indexes
-CREATE INDEX idx_news_processed_posted ON news(processed, posted);
+CREATE INDEX idx_news_status ON news(status);
 CREATE INDEX idx_instagram_posts_status ON instagram_posts(post_status);
-CREATE INDEX idx_instagram_posts_bot_id ON instagram_posts(bot_id); 
+CREATE INDEX idx_instagram_posts_bot_id ON instagram_posts(bot_id);

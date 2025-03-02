@@ -1,14 +1,12 @@
 package com.egemen.TweetBotTelegram.service;
 
-import com.egemen.TweetBotTelegram.entity.Bot;
-import com.egemen.TweetBotTelegram.entity.Tweet;
-import com.egemen.TweetBotTelegram.exception.InstagramApiException;
+import com.egemen.TweetBotTelegram.entity.InstagramPost;
+import com.egemen.TweetBotTelegram.entity.News;
 
 public interface InstagramApiService {
-    void processAndPostToInstagram(int botId);
-    void createPostLog(Bot bot, int postCount, Tweet tweet);
-    void handlePostingError(Tweet tweet, Exception e);
-    String uploadImageToInstagram(String imageUrl,String caption);
-    boolean publishPost(String mediaId);
-    void checkAndRefreshToken();
+    boolean createPost(InstagramPost post);
+    InstagramPost getPostById(Long id);
+    void publishPost(InstagramPost post) throws Exception;
+    void deletePost(String mediaId) throws Exception;
+    String uploadImage(String imageUrl) throws Exception;
 }

@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.dto;
 
+import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

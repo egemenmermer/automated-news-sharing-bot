@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.dto;
 
+import com.egemen.TweetBotTelegram.enums.SummarizedStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,5 +11,5 @@ import lombok.NoArgsConstructor;
 public class SummarizedNewsDTO {
     private String content;
     private int summarizedCount;
-    private SummarizeStatus status;
+    private SummarizedStatus status;
 }
