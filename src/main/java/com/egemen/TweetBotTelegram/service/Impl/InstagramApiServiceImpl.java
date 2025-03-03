@@ -3,6 +3,7 @@ package com.egemen.TweetBotTelegram.service.Impl;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
 import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
+import com.egemen.TweetBotTelegram.service.ImageProcessingService;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
 import com.egemen.TweetBotTelegram.service.PexelsService;
 import com.egemen.TweetBotTelegram.service.S3Service;
@@ -12,6 +13,9 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
+import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -37,6 +41,7 @@ public class InstagramApiServiceImpl implements InstagramApiService {
     private final InstagramPostRepository instagramPostRepository;
     private final S3Service s3Service;
     private final PexelsService pexelsService;
+    private final ImageProcessingService imageProcessingService;
     private static final String API_URL = "https://graph.instagram.com/v12.0";
 
     @Autowired
@@ -45,13 +50,15 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             String instagramUserId,
             InstagramPostRepository instagramPostRepository,
             S3Service s3Service,
-            PexelsService pexelsService) {
+            PexelsService pexelsService,
+            ImageProcessingService imageProcessingService) {
         this.accessToken = instagramAccessToken;
         this.userId = instagramUserId;
         this.restTemplate = new RestTemplate();
         this.instagramPostRepository = instagramPostRepository;
         this.s3Service = s3Service;
         this.pexelsService = pexelsService;
+        this.imageProcessingService = imageProcessingService;
         log.info("InstagramApiServiceImpl initialized with access token and user ID");
     }
 
@@ -65,7 +72,14 @@ public class InstagramApiServiceImpl implements InstagramApiService {
                 log.error("Instagram API credentials not configured");
                 post.setErrorMessage("Instagram API credentials not configured");
                 post.setPostStatus(PostStatus.FAILED);
-                instagramPostRepository.save(post);
+                
+                // Add try-catch for the save operation
+                try {
+                    instagramPostRepository.save(post);
+                    log.info("Saved failed post status to database");
+                } catch (Exception ex) {
+                    log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
+                }
                 return false;
             }
             
@@ -90,32 +104,75 @@ public class InstagramApiServiceImpl implements InstagramApiService {
                 log.error("Image URL must be a publicly accessible URL, not a local path: {}", imageUrl);
                 String searchQuery = post.getImagePrompt();
                 if (searchQuery == null || searchQuery.isEmpty()) {
-                    searchQuery = "news";
+                    searchQuery = post.getTitle() != null ? post.getTitle() : "news";
                 }
                 imageUrl = pexelsService.searchImage(searchQuery);
                 post.setImageUrl(imageUrl);
             }
             
+            // Create an image with text overlay
+            String title = post.getTitle() != null ? post.getTitle() : "";
+            String subtitle = post.getCaption() != null ? extractSubtitle(post.getCaption()) : "";
+            
+            File processedImageFile = imageProcessingService.createNewsImageWithText(imageUrl, title, subtitle);
+            
+            if (processedImageFile == null) {
+                log.error("Failed to create image with text overlay");
+                post.setErrorMessage("Failed to create image with text overlay");
+                post.setPostStatus(PostStatus.FAILED);
+                instagramPostRepository.save(post);
+                return false;
+            }
+            
+            // Upload the processed image to S3
+            String s3ImageUrl = s3Service.uploadFile(
+                Files.readAllBytes(processedImageFile.toPath()),
+                "instagram_" + UUID.randomUUID() + ".jpg",
+                "image/jpeg"
+            );
+            
+            // Delete the temporary file
+            processedImageFile.delete();
+            
             // Attempt to publish the post
-            String postId = publishPostDirectly(post.getCaption(), imageUrl);
+            String postId = publishPostDirectly(post.getCaption(), s3ImageUrl);
             
             if (postId != null) {
                 post.setInstagramPostId(postId);
                 post.setPostedAt(Timestamp.valueOf(LocalDateTime.now()));
                 post.setPostStatus(PostStatus.POSTED);
-                instagramPostRepository.save(post);
+                
+                // Add explicit logging before save
+                log.info("About to save Instagram post to database: {}", post);
+                InstagramPost savedPost = instagramPostRepository.save(post);
+                log.info("Saved Instagram post with ID: {}", savedPost.getId());
+                
                 return true;
             } else {
                 post.setErrorMessage("Failed to publish post to Instagram");
                 post.setPostStatus(PostStatus.FAILED);
-                instagramPostRepository.save(post);
+                
+                // Add try-catch for the save operation
+                try {
+                    instagramPostRepository.save(post);
+                    log.info("Saved failed post status to database");
+                } catch (Exception ex) {
+                    log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
+                }
                 return false;
             }
         } catch (Exception e) {
-            log.error("Error creating Instagram post: {}", e.getMessage());
+            log.error("Error creating Instagram post: {}", e.getMessage(), e);
             post.setErrorMessage(e.getMessage());
             post.setPostStatus(PostStatus.FAILED);
-            instagramPostRepository.save(post);
+            
+            // Add try-catch for the save operation
+            try {
+                instagramPostRepository.save(post);
+                log.info("Saved failed post status to database");
+            } catch (Exception ex) {
+                log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
+            }
             return false;
         }
     }
@@ -343,6 +400,88 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             }
         } catch (Exception e) {
             log.error("Error creating post from news: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    // Extract a subtitle from the caption (first sentence or first 100 chars)
+    private String extractSubtitle(String caption) {
+        if (caption == null || caption.isEmpty()) {
+            return "";
+        }
+        
+        // Try to get the first sentence
+        int endOfSentence = caption.indexOf('.');
+        if (endOfSentence > 0 && endOfSentence < 100) {
+            return caption.substring(0, endOfSentence + 1);
+        }
+        
+        // Otherwise get first 100 chars or less
+        return caption.length() > 100 ? caption.substring(0, 97) + "..." : caption;
+    }
+
+    private String uploadImageToInstagram(String imageUrl) {
+        try {
+            log.info("Uploading image to Instagram: {}", imageUrl);
+            
+            // Download the image to a temporary file
+            URL url = new URL(imageUrl);
+            File tempFile = File.createTempFile("instagram_upload_", ".jpg");
+            
+            try (InputStream in = url.openStream();
+                 FileOutputStream out = new FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                }
+            }
+            
+            // Now upload the local file
+            String mediaContainerId = uploadMediaContainer(tempFile);
+            
+            // Clean up
+            tempFile.delete();
+            
+            return mediaContainerId;
+        } catch (Exception e) {
+            log.error("Error uploading image to Instagram: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private String uploadMediaContainer(File imageFile) {
+        try {
+            // Create multipart request
+            RestTemplate restTemplate = new RestTemplate();
+            String url = API_URL + "/" + userId + "/media";
+            
+            // Create multipart file
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("image_url", new FileSystemResource(imageFile));
+            body.add("caption", "");
+            body.add("access_token", accessToken);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    requestEntity,
+                    Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                Map<String, Object> responseBody = response.getBody();
+                return (String) responseBody.get("id");
+            } else {
+                log.error("Failed to upload media container: {}", response.getBody());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error uploading media container: {}", e.getMessage(), e);
             return null;
         }
     }

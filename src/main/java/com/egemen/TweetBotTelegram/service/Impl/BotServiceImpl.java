@@ -77,13 +77,6 @@ public class BotServiceImpl implements BotService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void deleteBot(Long id) {
-        log.info("Deleting bot with ID: {}", id);
-        botRepository.deleteById(id);
-    }
-
-    @Override
     @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)
     public Optional<Bot> getBot(Long id) {
         log.info("Getting bot with ID: {}", id);
@@ -128,75 +121,14 @@ public class BotServiceImpl implements BotService {
         try {
             Bot bot = getBotById(botId);
             // Log the deletion attempt
-            log.info("Attempting to delete bot: {} (ID: {})", bot.getName(), bot.getId());
+            log.info("Deleting bot: {}", bot.getName());
             
-            try {
-                // Delete all related records in the correct order to avoid foreign key constraint violations
-                log.info("Deleting related records for bot: {} (ID: {})", bot.getName(), bot.getId());
-                
-                // Use JPQL to delete related records by bot
-                // This approach is more efficient than fetching and deleting individual records
-                
-                // Delete instagram posts first to avoid foreign key constraints
-                log.info("Deleting instagram posts for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM InstagramPost ip WHERE ip.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Also delete any Instagram posts that reference news from this bot
-                log.info("Deleting instagram posts referencing news from bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM InstagramPost ip WHERE ip.news IN (SELECT n FROM News n WHERE n.bot.id = :botId)")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-
-                // Delete fetch logs
-                log.info("Deleting fetch logs for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM FetchLogs f WHERE f.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Delete post logs
-                log.info("Deleting post logs for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM PostLogs p WHERE p.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Delete bot logs
-                log.info("Deleting bot logs for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM BotLogs b WHERE b.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Delete summarized news
-                log.info("Deleting summarized news for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM SummarizedNews s WHERE s.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Delete news
-                log.info("Deleting news for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM News n WHERE n.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Delete bot configurations
-                log.info("Deleting bot configurations for bot ID: {}", bot.getId());
-                entityManager.createQuery("DELETE FROM BotConfig bc WHERE bc.bot.id = :botId")
-                    .setParameter("botId", bot.getId())
-                    .executeUpdate();
-                
-                // Finally delete the bot
-                botRepository.delete(bot);
-                log.info("Successfully deleted bot: {} (ID: {})", bot.getName(), bot.getId());
-            } catch (DataIntegrityViolationException e) {
-                log.error("Failed to delete bot due to data integrity violation: {}", e.getMessage());
-                throw new CustomException(new Exception("Cannot delete bot due to existing dependencies"), HttpStatus.CONFLICT);
-            }
-        } catch (CustomException e) {
-            throw e;
+            // Delete the bot
+            botRepository.deleteById(botId);
+            log.info("Bot deleted successfully: {}", botId);
         } catch (Exception e) {
-            log.error("Unexpected error while deleting bot: {}", e.getMessage(), e);
-            throw new CustomException(new Exception("Error deleting bot: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+            log.error("Error deleting bot with ID {}: {}", botId, e.getMessage());
+            throw new RuntimeException("Failed to delete bot: " + e.getMessage(), e);
         }
     }
 }

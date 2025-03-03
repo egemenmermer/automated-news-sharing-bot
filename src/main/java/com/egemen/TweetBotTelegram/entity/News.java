@@ -4,6 +4,7 @@ import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.sql.Timestamp;
 
@@ -11,6 +12,7 @@ import java.sql.Timestamp;
 @Table(name = "news")
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 public class News {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,50 +1,71 @@
 -- Create bots table
-CREATE TABLE bots (
+CREATE TABLE IF NOT EXISTS bots (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    instagram_username VARCHAR(255),
-    instagram_password VARCHAR(255),
-    instagram_access_token TEXT,
-    instagram_user_id VARCHAR(255),
-    pexels_api_key VARCHAR(255),
-    mediastack_api_key VARCHAR(255),
-    gemini_api_key VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
     telegram_bot_username VARCHAR(255),
     telegram_bot_token VARCHAR(255),
-    fetch_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    post_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '30 minutes',
+    instagram_username VARCHAR(255),
+    instagram_password VARCHAR(255),
+    instagram_user_id VARCHAR(255),
+    instagram_access_token TEXT,
+    mediastack_api_key VARCHAR(255),
+    pexels_api_key VARCHAR(255),
+    gemini_api_key VARCHAR(255),
+    fetch_time VARCHAR(50),
+    post_time VARCHAR(50),
     last_run TIMESTAMP
 );
 
 -- Create news table
-CREATE TABLE news (
+CREATE TABLE IF NOT EXISTS news (
     id SERIAL PRIMARY KEY,
-    bot_id BIGINT REFERENCES bots(id) ON DELETE CASCADE,
-    title TEXT,
+    bot_id INTEGER NOT NULL REFERENCES bots(id),
+    title VARCHAR(255) NOT NULL,
     content TEXT,
-    description TEXT,
+    url VARCHAR(255),
     image_url TEXT,
-    generated_image_path TEXT,
     source VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'UNPROCESSED',
-    published_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_news_status CHECK (status IN ('UNPROCESSED', 'PROCESSED', 'PENDING', 'FAILED', 'DELETED'))
+    category VARCHAR(100),
+    published_at TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'PENDING'
 );
 
 -- Create instagram_posts table
-CREATE TABLE instagram_posts (
+CREATE TABLE IF NOT EXISTS instagram_posts (
     id SERIAL PRIMARY KEY,
-    bot_id BIGINT REFERENCES bots(id) ON DELETE CASCADE,
-    news_id BIGINT REFERENCES news(id) ON DELETE CASCADE,
-    image_url TEXT,
+    bot_id INTEGER NOT NULL REFERENCES bots(id),
+    news_id INTEGER REFERENCES news(id),
+    title VARCHAR(255),
     caption TEXT,
-    post_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
-    instagram_post_id TEXT,
-    retry_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    image_url TEXT,
+    image_prompt TEXT,
+    instagram_post_id VARCHAR(255),
+    post_status VARCHAR(50) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT NOW(),
     posted_at TIMESTAMP,
-    CONSTRAINT chk_post_status CHECK (post_status IN ('PENDING', 'IMAGE_GENERATED', 'POSTED', 'FAILED'))
+    retry_count INTEGER DEFAULT 0,
+    error_message TEXT
+);
+
+-- Create fetch_logs table
+CREATE TABLE IF NOT EXISTS fetch_logs (
+    id SERIAL PRIMARY KEY,
+    bot_id INTEGER NOT NULL REFERENCES bots(id),
+    fetch_time TIMESTAMP DEFAULT NOW(),
+    status VARCHAR(50),
+    articles_found INTEGER DEFAULT 0,
+    articles_saved INTEGER DEFAULT 0,
+    error_message TEXT
+);
+
+-- Create bot_configs table
+CREATE TABLE IF NOT EXISTS bot_configs (
+    id SERIAL PRIMARY KEY,
+    bot_id INTEGER NOT NULL REFERENCES bots(id),
+    config_type VARCHAR(50) NOT NULL,
+    config_key VARCHAR(255) NOT NULL,
+    config_value TEXT,
+    UNIQUE (bot_id, config_type, config_key)
 );
 
 -- Create bot_logs table
@@ -55,17 +76,6 @@ CREATE TABLE bot_logs (
     log_message TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_log_type CHECK (log_type IN ('INFO', 'WARNING', 'ERROR'))
-);
-
--- Create fetch_logs table
-CREATE TABLE fetch_logs (
-    id SERIAL PRIMARY KEY,
-    bot_id INT REFERENCES bots(id) ON DELETE CASCADE,
-    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
-    fetched_count INT NOT NULL DEFAULT 0,
-    log_message TEXT,
-    CONSTRAINT chk_fetch_status CHECK (status IN ('SUCCESS', 'FAILED'))
 );
 
 -- Create post_logs table

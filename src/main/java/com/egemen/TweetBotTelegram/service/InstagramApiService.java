@@ -9,4 +9,5 @@ public interface InstagramApiService {
     void publishPost(InstagramPost post) throws Exception;
     void deletePost(String mediaId) throws Exception;
     String uploadImage(String imageUrl) throws Exception;
+    String createPostFromNews(String caption, String imageUrl);
 }

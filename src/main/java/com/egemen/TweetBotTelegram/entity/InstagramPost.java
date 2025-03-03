@@ -31,7 +31,6 @@ public class InstagramPost {
     @Column(columnDefinition = "TEXT")
     private String caption;
 
-    @Column(columnDefinition = "TEXT")
     private String imageUrl;
 
     @Column(columnDefinition = "TEXT")

@@ -138,4 +138,50 @@ public class GeminiServiceImpl implements GeminiService {
         
         return title + " " + hashtags.toString().trim();
     }
+
+    private String generateResponseWithRetry(String prompt, int maxRetries) {
+        int retryCount = 0;
+        long retryDelay = 1000; // Start with 1 second delay
+        
+        while (retryCount < maxRetries) {
+            try {
+                return generateResponse(prompt);
+            } catch (Exception e) {
+                if (e.getMessage().contains("429") || e.getMessage().contains("RESOURCE_EXHAUSTED")) {
+                    retryCount++;
+                    if (retryCount >= maxRetries) {
+                        log.warn("Max retries reached for Gemini API, using fallback");
+                        return getFallbackResponse(prompt);
+                    }
+                    
+                    log.info("Rate limit hit, retrying in {} ms (attempt {}/{})", retryDelay, retryCount, maxRetries);
+                    try {
+                        Thread.sleep(retryDelay);
+                        // Exponential backoff
+                        retryDelay *= 2;
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return getFallbackResponse(prompt);
+                    }
+                } else {
+                    // Not a rate limit error, use fallback
+                    log.error("Error generating response from Gemini API: {}", e.getMessage(), e);
+                    return getFallbackResponse(prompt);
+                }
+            }
+        }
+        
+        return getFallbackResponse(prompt);
+    }
+
+    private String getFallbackResponse(String prompt) {
+        // Simple fallback logic
+        if (prompt.contains("image") || prompt.contains("picture")) {
+            return "A professional news image related to: " + prompt.substring(0, Math.min(prompt.length(), 100));
+        } else if (prompt.contains("summarize") || prompt.contains("summary")) {
+            return "Brief summary of the news article.";
+        } else {
+            return "Generated content unavailable at this time.";
+        }
+    }
 }

@@ -60,4 +60,30 @@ BEGIN
             ALTER TABLE instagram_posts ALTER COLUMN instagram_post_id TYPE TEXT;
         END IF;
     END IF;
+END $$;
+
+-- Repair script for instagram_posts table
+
+-- Check if the table exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'instagram_posts') THEN
+        -- Add title column if it doesn't exist
+        IF NOT EXISTS (SELECT FROM information_schema.columns 
+                      WHERE table_name = 'instagram_posts' AND column_name = 'title') THEN
+            ALTER TABLE instagram_posts ADD COLUMN title VARCHAR(255);
+        END IF;
+        
+        -- Make sure bot_id is not nullable
+        ALTER TABLE instagram_posts ALTER COLUMN bot_id SET NOT NULL;
+        
+        -- Set default value for post_status if it's null
+        UPDATE instagram_posts SET post_status = 'PENDING' WHERE post_status IS NULL;
+        
+        -- Set default timestamp for created_at if it's null
+        UPDATE instagram_posts SET created_at = NOW() WHERE created_at IS NULL;
+        
+        -- Set default retry_count if it's null
+        UPDATE instagram_posts SET retry_count = 0 WHERE retry_count IS NULL;
+    END IF;
 END $$; 

@@ -88,4 +88,25 @@ BEGIN
         CREATE INDEX idx_instagram_posts_status ON instagram_posts(post_status);
         CREATE INDEX idx_instagram_posts_bot_id ON instagram_posts(bot_id);
     END IF;
-END $$; 
+END $$;
+
+-- Add any missing columns to instagram_posts
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+
+-- Make sure bot_id is not nullable
+ALTER TABLE instagram_posts ALTER COLUMN bot_id SET NOT NULL;
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_news_bot_id ON news(bot_id);
+CREATE INDEX IF NOT EXISTS idx_news_status ON news(status);
+CREATE INDEX IF NOT EXISTS idx_instagram_posts_bot_id ON instagram_posts(bot_id);
+CREATE INDEX IF NOT EXISTS idx_instagram_posts_status ON instagram_posts(post_status);
+
+-- Add constraints
+ALTER TABLE instagram_posts DROP CONSTRAINT IF EXISTS fk_instagram_posts_bot;
+ALTER TABLE instagram_posts ADD CONSTRAINT fk_instagram_posts_bot 
+    FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE;
+
+ALTER TABLE instagram_posts DROP CONSTRAINT IF EXISTS fk_instagram_posts_news;
+ALTER TABLE instagram_posts ADD CONSTRAINT fk_instagram_posts_news 
+    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE SET NULL; 

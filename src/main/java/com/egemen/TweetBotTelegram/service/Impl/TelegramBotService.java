@@ -859,8 +859,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
             // Create new bot
             Bot newBot = new Bot();
             newBot.setName(botName);
-            newBot.setFetchTime(Timestamp.valueOf(LocalDateTime.now()));
-            newBot.setPostTime(Timestamp.valueOf(LocalDateTime.now()));
+            newBot.setFetchTime(LocalDateTime.now().toString());
+            newBot.setPostTime(LocalDateTime.now().toString());
             newBot.setLastRun(Timestamp.valueOf(LocalDateTime.now()));
             
             // Save the bot
@@ -1018,5 +1018,71 @@ public class TelegramBotService extends TelegramLongPollingBot {
             log.error("Error deleting bot: {}", e.getMessage(), e);
             sendMessage(chatId, "Error deleting bot. Please try again later.");
         }
+    }
+
+    private void postOneArticle(long chatId, Bot bot) {
+        try {
+            // Get one pending news article
+            List<News> pendingNews = newsService.getPendingNews(bot, 1);
+            
+            if (pendingNews.isEmpty()) {
+                sendMessage(chatId, "No pending news articles found for posting.");
+                return;
+            }
+            
+            News news = pendingNews.get(0);
+            
+            // Check if this news has already been attempted
+            if (news.getStatus() != NewsStatus.PENDING) {
+                log.info("Skipping news article as it's already been processed: {}", news.getTitle());
+                return;
+            }
+            
+            // Try to post to Instagram
+            String caption = news.getTitle();
+            if (caption.length() > 100) {
+                caption = caption.substring(0, 97) + "...";
+            }
+            
+            // Add hashtags
+            String[] keywords = news.getTitle().split(" ");
+            List<String> hashtags = new ArrayList<>();
+            for (String keyword : keywords) {
+                if (keyword.length() > 3 && !isCommonWord(keyword)) {
+                    hashtags.add("#" + keyword.replaceAll("[^a-zA-Z0-9]", ""));
+                }
+                if (hashtags.size() >= 5) break;
+            }
+            
+            caption = caption + " " + String.join(" ", hashtags);
+            
+            // Create and post
+            String mediaId = instagramApiService.createPostFromNews(caption, news.getImageUrl());
+            
+            if (mediaId != null) {
+                // Successfully posted
+                newsService.markNewsAsPosted(news.getId());
+                sendMessage(chatId, "Posted article to Instagram: " + news.getTitle());
+            } else {
+                // Failed to post
+                newsService.markNewsAsFailed(news.getId());
+                sendMessage(chatId, "Failed to post article: " + news.getTitle());
+                log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
+            }
+            
+        } catch (Exception e) {
+            log.error("Error posting article: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error posting article: " + e.getMessage());
+        }
+    }
+
+    private boolean isCommonWord(String word) {
+        String[] commonWords = {"the", "and", "for", "with", "that", "this", "have", "from", "are", "were"};
+        for (String commonWord : commonWords) {
+            if (word.equalsIgnoreCase(commonWord)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
