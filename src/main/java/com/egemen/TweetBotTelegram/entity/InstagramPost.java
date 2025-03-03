@@ -9,48 +9,45 @@ import lombok.NoArgsConstructor;
 import java.sql.Timestamp;
 
 @Entity
+@Table(name = "instagram_posts")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "instagram_posts")
 public class InstagramPost {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "bot_id")
+    @JoinColumn(name = "bot_id", nullable = false)
     private Bot bot;
 
     @ManyToOne
     @JoinColumn(name = "news_id")
     private News news;
 
-    @Column(name = "caption", columnDefinition = "TEXT")
+    private String title;
+
+    @Column(columnDefinition = "TEXT")
     private String caption;
 
-    @Column(name = "image_url", columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String imageUrl;
 
-    @Column(name = "image_prompt", columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String imagePrompt;
 
-    @Column(name = "post_status")
-    @Enumerated(EnumType.STRING)
-    private PostStatus postStatus = PostStatus.PENDING;
-
-    @Column(name = "instagram_post_id")
     private String instagramPostId;
 
-    @Column(name = "retry_count")
-    private Integer retryCount = 0;
+    @Enumerated(EnumType.STRING)
+    private PostStatus postStatus;
 
-    @Column(name = "error_message")
-    private String errorMessage;
-
-    @Column(name = "created_at")
     private Timestamp createdAt;
 
-    @Column(name = "posted_at")
     private Timestamp postedAt;
+
+    private Integer retryCount = 0;
+
+    @Column(columnDefinition = "TEXT")
+    private String errorMessage;
 }

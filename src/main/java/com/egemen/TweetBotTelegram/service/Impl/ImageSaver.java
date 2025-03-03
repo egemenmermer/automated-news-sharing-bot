@@ -3,7 +3,7 @@ package com.egemen.TweetBotTelegram.service.Impl;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -32,15 +32,17 @@ public class ImageSaver {
     private final String bucketName;
     private final String region;
 
+    @Autowired
     public ImageSaver(
-            @Value("${AWS_ACCESS_KEY}") String awsAccessKey,
-            @Value("${AWS_SECRET_KEY}") String awsSecretKey,
-            @Value("${AWS_S3_BUCKET}") String awsS3Bucket,
-            @Value("${AWS_REGION}") String awsRegion) {
+            String awsAccessKey,
+            String awsSecretKey,
+            String awsS3Bucket,
+            String awsRegion) {
         this.accessKey = awsAccessKey;
         this.secretKey = awsSecretKey;
         this.bucketName = awsS3Bucket;
         this.region = awsRegion;
+        logger.info("ImageSaver initialized with AWS credentials");
     }
 
     @PostConstruct

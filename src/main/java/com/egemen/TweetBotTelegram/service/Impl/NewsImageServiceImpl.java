@@ -1,163 +1,122 @@
 package com.egemen.TweetBotTelegram.service.Impl;
 
-import com.egemen.TweetBotTelegram.service.ImageService;
+import com.egemen.TweetBotTelegram.entity.News;
+import com.egemen.TweetBotTelegram.service.GeminiService;
+import com.egemen.TweetBotTelegram.service.NewsImageService;
+import com.egemen.TweetBotTelegram.service.PexelsService;
+import com.egemen.TweetBotTelegram.service.S3Service;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 @Slf4j
 @Service
-public class NewsImageServiceImpl implements ImageService {
+public class NewsImageServiceImpl implements NewsImageService {
+
+    private final GeminiService geminiService;
+    private final PexelsService pexelsService;
+    private final S3Service s3Service;
+
+    @Autowired
+    public NewsImageServiceImpl(GeminiService geminiService, PexelsService pexelsService, S3Service s3Service) {
+        this.geminiService = geminiService;
+        this.pexelsService = pexelsService;
+        this.s3Service = s3Service;
+        log.info("NewsImageServiceImpl initialized");
+    }
 
     @Override
-    public void generateImageFromText(String text, OutputStream outputStream) throws Exception {
-        // Create a news image with the text and write it to the output stream
-        BufferedImage image = createNewsImage(text, text);
-        ImageIO.write(image, "png", outputStream);
-    }
-    
-    /**
-     * Generates a news image with title and description text overlay
-     * @param title The news title
-     * @param description The news description
-     * @return The path to the generated image file
-     */
-    public String generateNewsImage(String title, String description) {
+    public String generateAndUploadImage(News news) {
         try {
-            // Create a blank image with dimensions suitable for Instagram
-            int width = 1080;  // Instagram recommended width
-            int height = 1080; // Square format for Instagram
+            // Generate image prompt using Gemini
+            String imagePrompt = geminiService.generateImageForNews(news);
+            log.info("Generated image prompt: {}", imagePrompt);
             
-            BufferedImage image = createNewsImage(title, description);
+            // Search for image using Pexels
+            String imageUrl = pexelsService.searchImage(imagePrompt);
+            log.info("Found image URL: {}", imageUrl);
             
-            // Save the image
-            String fileName = "generated-images/" + System.currentTimeMillis() + ".png";
-            File outputFile = new File(fileName);
-            outputFile.getParentFile().mkdirs();
+            // Upload image to S3
+            String s3Url = s3Service.uploadFileFromUrl(imageUrl);
+            log.info("Uploaded image to S3: {}", s3Url);
             
-            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                ImageIO.write(image, "png", fos);
-            }
-            
-            log.info("Generated news image: {}", fileName);
-            return fileName;
+            return s3Url;
         } catch (Exception e) {
-            log.error("Failed to generate news image", e);
+            log.error("Error generating and uploading image: {}", e.getMessage());
             return null;
         }
     }
-    
-    private BufferedImage createNewsImage(String title, String description) {
-        int width = 1080;  // Instagram recommended width
-        int height = 1080; // Square format for Instagram
-        
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = image.createGraphics();
 
-        // Set background color - dark gradient
-        GradientPaint gradient = new GradientPaint(
-            0, 0, new Color(33, 33, 33),
-            0, height, new Color(66, 66, 66)
-        );
-        g2d.setPaint(gradient);
-        g2d.fillRect(0, 0, width, height);
-
-        // Add a subtle pattern or texture
-        g2d.setColor(new Color(255, 255, 255, 20)); // Very transparent white
-        for (int i = 0; i < height; i += 10) {
-            g2d.drawLine(0, i, width, i);
-        }
-
-        // Configure text rendering
-        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        // Draw title
-        g2d.setColor(Color.WHITE);
-        Font titleFont = new Font("Arial", Font.BOLD, 48);
-        g2d.setFont(titleFont);
-
-        // Word wrap title
-        String wrappedTitle = wrapText(title, g2d, width - 100);
-        drawMultilineText(g2d, wrappedTitle, 50, 150);
-
-        // Draw description
-        Font descFont = new Font("Arial", Font.PLAIN, 32);
-        g2d.setFont(descFont);
-        String wrappedDesc = wrapText(description, g2d, width - 100);
-        drawMultilineText(g2d, wrappedDesc, 50, 400);
-
-        // Add timestamp
-        Font timeFont = new Font("Arial", Font.ITALIC, 24);
-        g2d.setFont(timeFont);
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-        g2d.drawString(timestamp, 50, height - 50);
-
-        // Add a border
-        g2d.setColor(new Color(200, 200, 200, 100));
-        g2d.setStroke(new BasicStroke(10));
-        g2d.drawRect(20, 20, width - 40, height - 40);
-
-        g2d.dispose();
-        return image;
-    }
-
-    private String wrapText(String text, Graphics2D g2d, int maxWidth) {
-        String[] words = text.split(" ");
-        StringBuilder wrapped = new StringBuilder();
-        StringBuilder line = new StringBuilder();
-
-        for (String word : words) {
-            if (line.length() > 0) {
-                line.append(" ");
-            }
-            line.append(word);
-            
-            if (g2d.getFontMetrics().stringWidth(line.toString()) > maxWidth) {
-                // If this isn't the first word on the line, remove it and put it on the next line
-                if (line.length() > word.length()) {
-                    line.delete(line.length() - word.length() - 1, line.length());
-                    if (wrapped.length() > 0) {
-                        wrapped.append("\n");
-                    }
-                    wrapped.append(line);
-                    line = new StringBuilder(word);
-                } else {
-                    // If it's just one long word, keep it on this line
-                    if (wrapped.length() > 0) {
-                        wrapped.append("\n");
-                    }
-                    wrapped.append(line);
-                    line = new StringBuilder();
+    @Override
+    public String generateImageForNews(News news) {
+        try {
+            if (news.getImageUrl() != null && !news.getImageUrl().isEmpty()) {
+                // Upload the image to S3 and get a public URL
+                String s3Url = s3Service.uploadFileFromUrl(news.getImageUrl());
+                if (s3Url != null) {
+                    return s3Url;
                 }
             }
+            
+            // Fallback to a public placeholder
+            return "https://via.placeholder.com/1080x1080.png?text=News+Image";
+        } catch (Exception e) {
+            log.error("Error generating image for news: {}", e.getMessage());
+            return "https://via.placeholder.com/1080x1080.png?text=Error";
         }
-
-        if (line.length() > 0) {
-            if (wrapped.length() > 0) {
-                wrapped.append("\n");
-            }
-            wrapped.append(line);
-        }
-
-        return wrapped.toString();
     }
 
-    private void drawMultilineText(Graphics2D g2d, String text, int x, int y) {
-        int lineHeight = g2d.getFontMetrics().getHeight();
-        String[] lines = text.split("\n");
-        
-        for (String line : lines) {
-            g2d.drawString(line, x, y);
-            y += lineHeight;
+    @Override
+    public String downloadImage(String imageUrl) {
+        try {
+            // Create directory if it doesn't exist
+            Path directoryPath = Paths.get("generated-images");
+            if (!Files.exists(directoryPath)) {
+                Files.createDirectories(directoryPath);
+            }
+
+            // Generate a unique filename
+            String filename = UUID.randomUUID().toString() + ".jpg";
+            Path filePath = directoryPath.resolve(filename);
+
+            // Download and save the image
+            URL url = new URL(imageUrl);
+            BufferedImage image = ImageIO.read(url);
+            
+            if (image != null) {
+                File outputFile = filePath.toFile();
+                ImageIO.write(image, "jpg", outputFile);
+                return filePath.toString();
+            } else {
+                log.error("Failed to read image from URL: {}", imageUrl);
+                return null;
+            }
+        } catch (IOException e) {
+            log.error("Error downloading image: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public String generateNewsImage(String imagePrompt, String title) {
+        try {
+            // Always use a placeholder image for Instagram
+            return "https://via.placeholder.com/1080x1080.png?text=" + 
+                   title.substring(0, Math.min(20, title.length())).replace(" ", "+");
+        } catch (Exception e) {
+            log.error("Error generating image with prompt: {}", e.getMessage());
+            return "https://via.placeholder.com/1080x1080.png?text=Error";
         }
     }
 }

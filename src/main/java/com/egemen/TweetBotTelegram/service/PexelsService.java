@@ -8,4 +8,5 @@ public interface PexelsService {
      * @throws Exception if there's an error fetching or processing the image
      */
     byte[] searchAndFetchImage(String query) throws Exception;
+    String searchImage(String query);
 }

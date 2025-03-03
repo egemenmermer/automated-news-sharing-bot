@@ -1,5 +1,6 @@
 package com.egemen.TweetBotTelegram.repository;
 
+import com.egemen.TweetBotTelegram.entity.Bot;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,4 +22,13 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     List<News> findByStatus(@Param("status") NewsStatus status, Pageable pageable);
     
     List<News> findByStatusOrderByPublishedAtDesc(NewsStatus status);
+
+    List<News> findByBot(Bot bot);
+    
+    List<News> findByBotAndStatus(Bot bot, NewsStatus status);
+    
+    @Query(value = "SELECT * FROM news WHERE bot_id = ?1 AND status = ?2 ORDER BY published_at DESC LIMIT ?3", nativeQuery = true)
+    List<News> findByBotAndStatusOrderByPublishedAtDesc(Bot bot, NewsStatus status, int limit);
+    
+    boolean existsByTitleAndBot(String title, Bot bot);
 }

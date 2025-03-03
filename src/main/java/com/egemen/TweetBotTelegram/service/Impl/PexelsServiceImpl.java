@@ -2,18 +2,20 @@ package com.egemen.TweetBotTelegram.service.Impl;
 
 import com.egemen.TweetBotTelegram.service.PexelsService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -21,60 +23,67 @@ import java.util.Random;
 @Service
 public class PexelsServiceImpl implements PexelsService {
 
-    @Value("${pexels.api.key}")
-    private String apiKey;
-    
+    private final String apiKey;
     private final RestTemplate restTemplate;
-    private final Random random = new Random();
-    
-    public PexelsServiceImpl() {
+    private static final String PEXELS_API_URL = "https://api.pexels.com/v1/search";
+    private static final String[] FALLBACK_IMAGES = {
+        "https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg",
+        "https://images.pexels.com/photos/3184339/pexels-photo-3184339.jpeg",
+        "https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg",
+        "https://images.pexels.com/photos/3182777/pexels-photo-3182777.jpeg",
+        "https://images.pexels.com/photos/3182774/pexels-photo-3182774.jpeg"
+    };
+
+    @Autowired
+    public PexelsServiceImpl(String pexelsApiKey) {
+        this.apiKey = pexelsApiKey;
         this.restTemplate = new RestTemplate();
+        log.info("PexelsServiceImpl initialized with API key");
     }
     
     @Override
-    public byte[] searchAndFetchImage(String query) throws Exception {
-        log.info("Searching for image with query: {}", query);
-        
-        // Prepare headers with API key
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + apiKey);
-        
-        // Build the URL with the search query
-        String url = String.format("https://api.pexels.com/v1/search?query=%s&per_page=10", query.replace(" ", "+"));
-        
-        // Make the API call
-        ResponseEntity<Map> response = restTemplate.exchange(
+    public String searchImage(String query) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", apiKey);
+            
+            String url = PEXELS_API_URL + "?query=" + query + "&per_page=1";
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
                 url,
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class
-        );
-        
-        // Process the response
-        if (response.getBody() == null || !response.getBody().containsKey("photos")) {
-            log.error("No photos found in Pexels API response");
-            throw new Exception("No photos found in Pexels API response");
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                if (responseBody.containsKey("photos")) {
+                    List<Map<String, Object>> photos = (List<Map<String, Object>>) responseBody.get("photos");
+                    if (photos != null && !photos.isEmpty()) {
+                        Map<String, Object> photo = photos.get(0);
+                        Map<String, Object> src = (Map<String, Object>) photo.get("src");
+                        return (String) src.get("large");
+                    }
+                }
+            }
+            
+            // If no image found, return a fallback image
+            return getFallbackImage();
+        } catch (Exception e) {
+            log.error("Error searching image from Pexels: {}", e.getMessage());
+            return getFallbackImage();
         }
-        
-        // Get the photos array
-        Object photosObj = response.getBody().get("photos");
-        if (!(photosObj instanceof java.util.List) || ((java.util.List<?>) photosObj).isEmpty()) {
-            log.error("No photos found for query: {}", query);
-            throw new Exception("No photos found for query: " + query);
-        }
-        
-        // Select a random photo from the results
-        java.util.List<?> photos = (java.util.List<?>) photosObj;
-        int randomIndex = random.nextInt(photos.size());
-        Map<String, Object> photo = (Map<String, Object>) photos.get(randomIndex);
-        
-        // Get the image URL (large size)
-        Map<String, Object> src = (Map<String, Object>) photo.get("src");
-        String imageUrl = (String) src.get("large");
-        
-        log.info("Selected image URL: {}", imageUrl);
-        
-        // Download the image
+    }
+    
+    private String getFallbackImage() {
+        // Return a random fallback image
+        return FALLBACK_IMAGES[new Random().nextInt(FALLBACK_IMAGES.length)];
+    }
+    
+    @Override
+    public byte[] searchAndFetchImage(String query) throws Exception {
+        String imageUrl = searchImage(query);
         return downloadImage(imageUrl);
     }
     

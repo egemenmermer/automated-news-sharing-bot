@@ -1,54 +1,62 @@
 package com.egemen.TweetBotTelegram.config;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
-import org.springframework.core.env.PropertiesPropertySource;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 
-import java.util.Properties;
+import java.util.HashMap;
+import java.util.Map;
 
+@Slf4j
 @Configuration
 public class DotenvConfig {
 
     @Bean
-    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
-        PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-        configurer.setProperties(loadDotenvProperties());
-        return configurer;
-    }
-
-    private static Properties loadDotenvProperties() {
-        Properties properties = new Properties();
-        Dotenv dotenv = Dotenv.configure()
-                .directory(".")
-                .ignoreIfMissing()
-                .systemProperties()
-                .load();
-
-        // Load database configuration
-        properties.setProperty("spring.datasource.url", dotenv.get("DB_URL"));
-        properties.setProperty("spring.datasource.username", dotenv.get("DB_USERNAME"));
-        properties.setProperty("spring.datasource.password", dotenv.get("DB_PASSWORD"));
+    public Dotenv dotenv(ConfigurableEnvironment environment) {
+        Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         
-        // Load API keys and other configurations
-        properties.setProperty("MEDIASTACK_API_KEY", dotenv.get("MEDIASTACK_API_KEY"));
-        properties.setProperty("GEMINI_API_KEY", dotenv.get("GEMINI_API_KEY"));
-        properties.setProperty("PEXELS_API_KEY", dotenv.get("PEXELS_API_KEY"));
-        properties.setProperty("INSTAGRAM_ACCESS_TOKEN", dotenv.get("INSTAGRAM_ACCESS_TOKEN"));
-        properties.setProperty("INSTAGRAM_USERID", dotenv.get("INSTAGRAM_USERID"));
-        properties.setProperty("TELEGRAM_BOT_USERNAME", dotenv.get("TELEGRAM_BOT_USERNAME"));
-        properties.setProperty("TELEGRAM_BOT_TOKEN", dotenv.get("TELEGRAM_BOT_TOKEN"));
-        properties.setProperty("AWS_ACCESS_KEY", dotenv.get("AWS_ACCESS_KEY"));
-        properties.setProperty("AWS_SECRET_KEY", dotenv.get("AWS_SECRET_KEY"));
-        properties.setProperty("AWS_S3_BUCKET", dotenv.get("AWS_S3_BUCKET"));
-        properties.setProperty("AWS_REGION", dotenv.get("AWS_REGION"));
-        properties.setProperty("APP_SCHEDULER_FETCH_NEWS_RATE", dotenv.get("APP_SCHEDULER_FETCH_NEWS_RATE", "300000"));
-        properties.setProperty("APP_SCHEDULER_POST_RATE", dotenv.get("APP_SCHEDULER_POST_RATE", "600000"));
-
-        // Set default driver class name
-        properties.setProperty("spring.datasource.driver-class-name", "org.postgresql.Driver");
-
-        return properties;
+        Map<String, Object> envMap = new HashMap<>();
+        
+        // Add database configuration
+        addProperty(envMap, dotenv, "DB_URL", "spring.datasource.url");
+        addProperty(envMap, dotenv, "DB_USERNAME", "spring.datasource.username");
+        addProperty(envMap, dotenv, "DB_PASSWORD", "spring.datasource.password");
+        
+        // Add AWS S3 configuration
+        addProperty(envMap, dotenv, "AWS_ACCESS_KEY", "aws.s3.accessKey");
+        addProperty(envMap, dotenv, "AWS_SECRET_KEY", "aws.s3.secretKey");
+        addProperty(envMap, dotenv, "AWS_S3_BUCKET", "aws.s3.bucketName");
+        addProperty(envMap, dotenv, "AWS_REGION", "aws.s3.region");
+        
+        // Add Instagram configuration
+        addProperty(envMap, dotenv, "INSTAGRAM_USERID", "instagram.userId");
+        addProperty(envMap, dotenv, "INSTAGRAM_ACCESS_TOKEN", "instagram.accessToken");
+        
+        // Add other properties as needed
+        addProperty(envMap, dotenv, "PEXELS_API_KEY", "pexels.api.key");
+        addProperty(envMap, dotenv, "MEDIASTACK_API_KEY", "mediastack.api.key");
+        addProperty(envMap, dotenv, "GEMINI_API_KEY", "gemini.api.key");
+        addProperty(envMap, dotenv, "TELEGRAM_BOT_USERNAME", "telegram.bot.username");
+        addProperty(envMap, dotenv, "TELEGRAM_BOT_TOKEN", "telegram.bot.token");
+        
+        // Add the property source to the environment
+        environment.getPropertySources().addFirst(new MapPropertySource("dotenvProperties", envMap));
+        
+        log.info("Loaded environment variables from .env file");
+        return dotenv;
+    }
+    
+    private void addProperty(Map<String, Object> envMap, Dotenv dotenv, String envKey) {
+        addProperty(envMap, dotenv, envKey, envKey);
+    }
+    
+    private void addProperty(Map<String, Object> envMap, Dotenv dotenv, String envKey, String propertyKey) {
+        String value = dotenv.get(envKey);
+        if (value != null) {
+            envMap.put(propertyKey, value);
+        }
     }
 }

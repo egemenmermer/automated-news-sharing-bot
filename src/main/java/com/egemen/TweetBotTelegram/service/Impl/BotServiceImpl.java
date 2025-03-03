@@ -7,12 +7,15 @@ import com.egemen.TweetBotTelegram.service.BotService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Implementation of BotService responsible for managing automated bots.
@@ -32,6 +35,7 @@ public class BotServiceImpl implements BotService {
     private final PostLogsRepository postLogsRepository;
     private final BotLogsRepository botLogsRepository;
 
+    @Autowired
     public BotServiceImpl(BotRepository botRepository,
                          FetchLogsRepository fetchLogsRepository,
                          BotConfigRepository botConfigRepository,
@@ -46,10 +50,13 @@ public class BotServiceImpl implements BotService {
         this.summarizedNewsRepository = summarizedNewsRepository;
         this.postLogsRepository = postLogsRepository;
         this.botLogsRepository = botLogsRepository;
+        log.info("BotServiceImpl initialized");
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Bot createBot(Bot bot) {
+        log.info("Creating bot: {}", bot.getName());
         if(bot.getName() == null) {
             throw new CustomException(new Exception("Bot Name is required"), HttpStatus.BAD_REQUEST);
         }
@@ -63,7 +70,30 @@ public class BotServiceImpl implements BotService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Bot updateBot(Bot bot) {
+        log.info("Updating bot: {}", bot.getName());
+        return botRepository.save(bot);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deleteBot(Long id) {
+        log.info("Deleting bot with ID: {}", id);
+        botRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)
+    public Optional<Bot> getBot(Long id) {
+        log.info("Getting bot with ID: {}", id);
+        return botRepository.findById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)
     public List<Bot> listBots() {
+        log.info("Listing all bots");
         List<Bot> bots = botRepository.findAll();
         if(bots.isEmpty()) {
             throw new CustomException(new Exception("No Bots found"), HttpStatus.NOT_FOUND);
@@ -91,8 +121,6 @@ public class BotServiceImpl implements BotService {
         return botRepository.findById(botId)
                 .orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
     }
-
-
 
     @Override
     @Transactional

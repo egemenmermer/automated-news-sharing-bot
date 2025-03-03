@@ -14,7 +14,7 @@ import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
 import com.egemen.TweetBotTelegram.service.NewsService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
@@ -53,17 +53,14 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private final PostLogsRepository postLogsRepository;
     private final TaskScheduler taskScheduler;
     private final NewsProcessingScheduler newsProcessingScheduler;
-
-    @Value("${TELEGRAM_BOT_USERNAME}")
-    private String botUsername;
-
-    @Value("${TELEGRAM_BOT_TOKEN}")
-    private String botToken;
+    private final String botUsername;
+    private final String botToken;
 
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
     private final Map<Long, String> userStates = new ConcurrentHashMap<>();
     private final Map<Long, Bot> userBots = new ConcurrentHashMap<>();
 
+    @Autowired
     public TelegramBotService(NewsService newsService,
                              InstagramApiService instagramApiService,
                              GeminiService geminiService,
@@ -71,7 +68,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
                              BotConfigRepository botConfigurationRepository,
                              PostLogsRepository postLogsRepository,
                              TaskScheduler taskScheduler,
-                             NewsProcessingScheduler newsProcessingScheduler) {
+                             NewsProcessingScheduler newsProcessingScheduler,
+                             String telegramBotUsername,
+                             String telegramBotToken) {
         super(new DefaultBotOptions());
         this.newsService = newsService;
         this.instagramApiService = instagramApiService;
@@ -81,6 +80,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
         this.postLogsRepository = postLogsRepository;
         this.taskScheduler = taskScheduler;
         this.newsProcessingScheduler = newsProcessingScheduler;
+        this.botUsername = telegramBotUsername;
+        this.botToken = telegramBotToken;
+        log.info("TelegramBotService initialized with bot username: {}", botUsername);
     }
 
     @Override
@@ -102,28 +104,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
     public void onUpdatesReceived(List<Update> updates) {
         super.onUpdatesReceived(updates);
     }
-
-    // Remove duplicate field declaration and constructor
-    // private final NewsProcessingScheduler newsProcessingScheduler;
-
-    // public TelegramBotService(NewsService newsService,
-    //                          InstagramApiService instagramApiService,
-    //                          GeminiService geminiService,
-    //                          BotService botService,
-    //                          BotConfigRepository botConfigurationRepository,
-    //                          PostLogsRepository postLogsRepository,
-    //                          TaskScheduler taskScheduler,
-    //                          NewsProcessingScheduler newsProcessingScheduler) {
-    //     super(new DefaultBotOptions());
-    //     this.newsService = newsService;
-    //     this.instagramApiService = instagramApiService;
-    //     this.geminiService = geminiService;
-    //     this.botService = botService;
-    //     this.botConfigurationRepository = botConfigurationRepository;
-    //     this.postLogsRepository = postLogsRepository;
-    //     this.taskScheduler = taskScheduler;
-    //     this.newsProcessingScheduler = newsProcessingScheduler;
-    // }
 
     private void handleStartProcessing(long chatId) {
         try {

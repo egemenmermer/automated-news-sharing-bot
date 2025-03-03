@@ -1,50 +1,57 @@
 package com.egemen.TweetBotTelegram.service;
 
-import com.egemen.TweetBotTelegram.entity.News;
+import com.egemen.TweetBotTelegram.entity.Bot;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
-import com.egemen.TweetBotTelegram.enums.NewsStatus;
+import com.egemen.TweetBotTelegram.entity.News;
+import com.egemen.TweetBotTelegram.enums.PostStatus;
+import com.egemen.TweetBotTelegram.repository.InstagramPostRepository;
+import com.egemen.TweetBotTelegram.service.Impl.InstagramApiServiceImpl;
 import com.egemen.TweetBotTelegram.service.Impl.NewsImageServiceImpl;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Service
-@RequiredArgsConstructor
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+
 @Slf4j
+@Service
 public class SocialMediaService {
 
-    private final InstagramApiService instagramService;
+    private final InstagramApiServiceImpl instagramApiService;
+    private final InstagramPostRepository instagramPostRepository;
     private final NewsImageServiceImpl newsImageService;
-    
-    public boolean postToAllPlatforms(News news) {
-        boolean anySuccess = false;
-        
-        // Try posting to Instagram
+
+    public SocialMediaService(InstagramApiServiceImpl instagramApiService, InstagramPostRepository instagramPostRepository, NewsImageServiceImpl newsImageService) {
+        this.instagramApiService = instagramApiService;
+        this.instagramPostRepository = instagramPostRepository;
+        this.newsImageService = newsImageService;
+    }
+
+    public boolean postToInstagram(News news, Bot bot, String caption, String imagePrompt) {
         try {
-            // Generate image with text overlay
-            String imagePath = newsImageService.generateNewsImage(news.getTitle(), news.getDescription());
-            if (imagePath == null) {
-                log.error("Failed to generate image for Instagram post");
-                return false;
-            }
+            // Generate image for the news article
+            String imageUrl = newsImageService.generateNewsImage(imagePrompt, news.getTitle());
             
+            // Create Instagram post entity
             InstagramPost instagramPost = new InstagramPost();
-            instagramPost.setCaption(news.getTitle() + "\n\n" + news.getDescription());
-            instagramPost.setImageUrl(imagePath);
+            instagramPost.setBot(bot);
             instagramPost.setNews(news);
+            instagramPost.setCaption(caption);
+            instagramPost.setImageUrl(imageUrl);
+            instagramPost.setImagePrompt(imagePrompt);
+            instagramPost.setPostStatus(PostStatus.PENDING);
+            instagramPost.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
             
-            boolean instagramSuccess = instagramService.createPost(instagramPost);
-            if (instagramSuccess) {
-                log.info("Successfully posted to Instagram: {}", news.getTitle());
-                news.setStatus(NewsStatus.POSTED);
-                anySuccess = true;
-            } else {
-                log.error("Failed to post to Instagram");
-            }
+            // Save the post to the database
+            instagramPost = instagramPostRepository.save(instagramPost);
+            
+            // Post to Instagram
+            boolean success = instagramApiService.createPost(instagramPost);
+            
+            return success;
         } catch (Exception e) {
-            log.error("Error posting to Instagram", e);
+            log.error("Error posting to Instagram: {}", e.getMessage());
+            return false;
         }
-        
-        return anySuccess;
     }
 }

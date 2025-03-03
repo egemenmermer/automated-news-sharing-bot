@@ -25,5 +25,4 @@ public class ArticleDTO {
 
     @JsonProperty("published_at")
     private OffsetDateTime publishedAt;
-
 }

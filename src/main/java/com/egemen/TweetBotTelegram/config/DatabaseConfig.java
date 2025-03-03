@@ -1,57 +1,57 @@
 package com.egemen.TweetBotTelegram.config;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import io.github.cdimascio.dotenv.Dotenv;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
-import org.springframework.core.env.Environment;
-import org.springframework.jdbc.datasource.init.DataSourceInitializer;
 
 import javax.sql.DataSource;
 
+@Slf4j
 @Configuration
 public class DatabaseConfig {
 
-    @Autowired
-    private Environment env;
-
-    @Primary
     @Bean
-    @ConfigurationProperties("spring.datasource")
-    public DataSourceProperties dataSourceProperties() {
-        return new DataSourceProperties();
-    }
-
     @Primary
-    @Bean
-    @DependsOn("propertySourcesPlaceholderConfigurer")
     public DataSource dataSource() {
-        HikariDataSource dataSource = dataSourceProperties()
-                .initializeDataSourceBuilder()
-                .type(HikariDataSource.class)
-                .build();
+        Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         
-        // Configure HikariCP settings from application properties
-        dataSource.setConnectionTimeout(Long.parseLong(env.getProperty("spring.datasource.hikari.connection-timeout", "20000")));
-        dataSource.setMinimumIdle(Integer.parseInt(env.getProperty("spring.datasource.hikari.minimum-idle", "5")));
-        dataSource.setMaximumPoolSize(Integer.parseInt(env.getProperty("spring.datasource.hikari.maximum-pool-size", "15")));
-        dataSource.setIdleTimeout(Long.parseLong(env.getProperty("spring.datasource.hikari.idle-timeout", "180000")));
-        dataSource.setMaxLifetime(Long.parseLong(env.getProperty("spring.datasource.hikari.max-lifetime", "600000")));
-        dataSource.setAutoCommit(false); // Changed from true to false to fix PostgreSQL LOB handling
-        dataSource.setConnectionTestQuery(env.getProperty("spring.datasource.hikari.connection-test-query", "SELECT 1"));
-        dataSource.setPoolName(env.getProperty("spring.datasource.hikari.pool-name", "TweetBotHikariPool"));
+        String dbUrl = dotenv.get("DB_URL");
+        String dbUsername = dotenv.get("DB_USERNAME");
+        String dbPassword = dotenv.get("DB_PASSWORD");
         
+        log.info("Configuring database connection with URL: {}", dbUrl);
+        
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(dbUrl);
+        config.setUsername(dbUsername);
+        config.setPassword(dbPassword);
+        config.setDriverClassName("org.postgresql.Driver");
+        
+        // Important: Set autoCommit to false
+        config.setAutoCommit(false);
+        
+        // Other HikariCP settings
+        config.setConnectionTimeout(20000);
+        config.setMinimumIdle(5);
+        config.setMaximumPoolSize(15);
+        config.setIdleTimeout(300000);
+        config.setMaxLifetime(600000);
+        config.setLeakDetectionThreshold(60000);
+        config.setPoolName("TweetBotHikariPool");
+        
+        // Add PostgreSQL specific properties
+        config.addDataSourceProperty("reWriteBatchedInserts", "true");
+        config.addDataSourceProperty("cachePrepStmts", "true");
+        config.addDataSourceProperty("prepStmtCacheSize", "250");
+        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        
+        HikariDataSource dataSource = new HikariDataSource(config);
+        
+        log.info("Database connection configured with HikariCP");
         return dataSource;
-    }
-
-    @Bean
-    public DataSourceInitializer dataSourceInitializer(DataSource dataSource) {
-        DataSourceInitializer initializer = new DataSourceInitializer();
-        initializer.setDataSource(dataSource);
-        return initializer;
     }
 }
