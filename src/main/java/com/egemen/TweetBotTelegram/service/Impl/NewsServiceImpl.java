@@ -38,7 +38,7 @@ import java.util.List;
 @Service
 public class NewsServiceImpl implements NewsService {
 
-    @Value("${MEDIASTACK_API_KEY}")
+    @Value("${mediastack.api.key}")
     private String mediaStackApiKey;
     private final NewsRepository newsRepository;
     private final BotRepository botsRepository;

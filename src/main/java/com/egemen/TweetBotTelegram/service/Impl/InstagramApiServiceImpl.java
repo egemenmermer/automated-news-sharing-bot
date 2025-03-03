@@ -77,14 +77,14 @@ public class InstagramApiServiceImpl implements InstagramApiService {
     @Override
     public String uploadImage(String imageUrl) throws Exception {
         try {
-            String url = String.format("https://graph.facebook.com/v18.0/%s/media", userId);
+            String url = String.format("https://graph.instagram.com/v22.0/%s/media", userId);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            
+            headers.setBearerAuth(accessToken);
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("image_url", imageUrl);
-            requestBody.put("access_token", accessToken);
             requestBody.put("is_carousel_item", false);
             
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
@@ -106,14 +106,14 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         try {
             // Get the media ID from uploadImage if not already done in createPost
             String mediaId = uploadImage(post.getImageUrl());
-            String url = String.format("https://graph.facebook.com/v18.0/%s/media_publish", userId);
+            String url = String.format("https://graph.instagram.com/v22.0/%s/media_publish", userId);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            
+            headers.setBearerAuth(accessToken);
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("creation_id", mediaId);
-            requestBody.put("access_token", accessToken);
             requestBody.put("caption", post.getCaption());
             
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
@@ -138,13 +138,13 @@ public class InstagramApiServiceImpl implements InstagramApiService {
     @Override
     public void deletePost(String mediaId) throws Exception {
         try {
-            String url = String.format("https://graph.facebook.com/v18.0/%s", mediaId);
+            String url = String.format("https://graph.instagram.com/v22.0/%s", mediaId);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            
+            headers.setBearerAuth(accessToken);
+
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("access_token", accessToken);
             
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.DELETE, request, Map.class);
