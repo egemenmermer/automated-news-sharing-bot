@@ -72,8 +72,21 @@ public class BotServiceImpl implements BotService {
     public void deleteBot(Long botId) {
         try {
             Bot bot = getBotById(botId);
-            botRepository.delete(bot);
+            // Log the deletion attempt
+            log.info("Attempting to delete bot: {} (ID: {})", bot.getName(), bot.getId());
+            
+            try {
+                // Delete the bot and its related data
+                botRepository.delete(bot);
+                log.info("Successfully deleted bot: {} (ID: {})", bot.getName(), bot.getId());
+            } catch (DataIntegrityViolationException e) {
+                log.error("Failed to delete bot due to data integrity violation: {}", e.getMessage());
+                throw new CustomException(new Exception("Cannot delete bot due to existing dependencies"), HttpStatus.CONFLICT);
+            }
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
+            log.error("Unexpected error while deleting bot: {}", e.getMessage(), e);
             throw new CustomException(new Exception("Error deleting bot: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

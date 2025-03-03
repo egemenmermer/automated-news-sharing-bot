@@ -37,7 +37,7 @@ public class PexelsServiceImpl implements PexelsService {
         
         // Prepare headers with API key
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", apiKey);
+        headers.set("Authorization", "Bearer " + apiKey);
         
         // Build the URL with the search query
         String url = String.format("https://api.pexels.com/v1/search?query=%s&per_page=10", query.replace(" ", "+"));

@@ -34,9 +34,9 @@ public class NewsFetchScheduler {
      * Scheduled task that runs at a fixed rate to fetch news for all active bots.
      * The rate is configurable via the APP_SCHEDULER_FETCH_NEWS_RATE environment variable.
      */
-    @Scheduled(fixedRateString = "${APP_SCHEDULER_FETCH_NEWS_RATE:300000}")
+    // Disabled automatic scheduling to only allow manual fetching through Telegram
     public void fetchNewsForAllBots() {
-        log.info("Starting scheduled news fetch for all bots");
+        log.info("Starting manual news fetch for all bots");
         List<Bot> activeBots = botRepository.findAllActiveBots();
         
         if (activeBots.isEmpty()) {

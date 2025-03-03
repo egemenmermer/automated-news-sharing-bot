@@ -8,6 +8,7 @@ import com.egemen.TweetBotTelegram.enums.ConfigType;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
 import com.egemen.TweetBotTelegram.repository.BotConfigRepository;
 import com.egemen.TweetBotTelegram.repository.PostLogsRepository;
+import com.egemen.TweetBotTelegram.scheduler.NewsProcessingScheduler;
 import com.egemen.TweetBotTelegram.service.BotService;
 import com.egemen.TweetBotTelegram.service.GeminiService;
 import com.egemen.TweetBotTelegram.service.InstagramApiService;
@@ -51,6 +52,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private final BotConfigRepository botConfigurationRepository;
     private final PostLogsRepository postLogsRepository;
     private final TaskScheduler taskScheduler;
+    private final NewsProcessingScheduler newsProcessingScheduler;
 
     @Value("${TELEGRAM_BOT_USERNAME}")
     private String botUsername;
@@ -68,7 +70,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
                              BotService botService,
                              BotConfigRepository botConfigurationRepository,
                              PostLogsRepository postLogsRepository,
-                             TaskScheduler taskScheduler) {
+                             TaskScheduler taskScheduler,
+                             NewsProcessingScheduler newsProcessingScheduler) {
         super(new DefaultBotOptions());
         this.newsService = newsService;
         this.instagramApiService = instagramApiService;
@@ -77,6 +80,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         this.botConfigurationRepository = botConfigurationRepository;
         this.postLogsRepository = postLogsRepository;
         this.taskScheduler = taskScheduler;
+        this.newsProcessingScheduler = newsProcessingScheduler;
     }
 
     @Override
@@ -99,6 +103,54 @@ public class TelegramBotService extends TelegramLongPollingBot {
         super.onUpdatesReceived(updates);
     }
 
+    // Remove duplicate field declaration and constructor
+    // private final NewsProcessingScheduler newsProcessingScheduler;
+
+    // public TelegramBotService(NewsService newsService,
+    //                          InstagramApiService instagramApiService,
+    //                          GeminiService geminiService,
+    //                          BotService botService,
+    //                          BotConfigRepository botConfigurationRepository,
+    //                          PostLogsRepository postLogsRepository,
+    //                          TaskScheduler taskScheduler,
+    //                          NewsProcessingScheduler newsProcessingScheduler) {
+    //     super(new DefaultBotOptions());
+    //     this.newsService = newsService;
+    //     this.instagramApiService = instagramApiService;
+    //     this.geminiService = geminiService;
+    //     this.botService = botService;
+    //     this.botConfigurationRepository = botConfigurationRepository;
+    //     this.postLogsRepository = postLogsRepository;
+    //     this.taskScheduler = taskScheduler;
+    //     this.newsProcessingScheduler = newsProcessingScheduler;
+    // }
+
+    private void handleStartProcessing(long chatId) {
+        try {
+            newsProcessingScheduler.enableScheduler();
+            sendMessage(chatId, "News processing scheduler has been enabled.");
+        } catch (Exception e) {
+            log.error("Error enabling news processing scheduler: {}", e.getMessage());
+            sendMessage(chatId, "Failed to enable news processing scheduler.");
+        }
+    }
+
+    private void handleStopProcessing(long chatId) {
+        try {
+            newsProcessingScheduler.disableScheduler();
+            sendMessage(chatId, "News processing scheduler has been disabled.");
+        } catch (Exception e) {
+            log.error("Error disabling news processing scheduler: {}", e.getMessage());
+            sendMessage(chatId, "Failed to disable news processing scheduler.");
+        }
+    }
+
+    private void handleProcessingStatus(long chatId) {
+        boolean isEnabled = newsProcessingScheduler.isSchedulerEnabled();
+        String status = isEnabled ? "enabled" : "disabled";
+        sendMessage(chatId, "News processing scheduler is currently " + status + ".");
+    }
+
     @Override
     public void onClosing() {
         super.onClosing();
@@ -110,11 +162,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
         try {
             telegramBotsApi.registerBot(this);
             log.info("Telegram bot has been registered successfully!");
-            
-            // Initialize hourly posting scheduler
-            initializeHourlyPostingScheduler();
-            
-            // Note: Removed automatic bot restart to allow manual control
             log.info("Bot initialized and ready for manual operation");
         } catch (TelegramApiException e) {
             log.error("Error occurred while registering bot: " + e.getMessage());
@@ -137,16 +184,84 @@ public class TelegramBotService extends TelegramLongPollingBot {
         log.info("Hourly posting scheduler initialized");
     }
     
-    private void restartActiveBots() {
+    private void handleScheduleBot(long chatId) {
         try {
-            List<Bot> activeBots = botService.listBots();
-            log.info("Found {} active bots to restart", activeBots.size());
-            
-            for (Bot bot : activeBots) {
-                startBotScheduler(bot);
+            List<Bot> bots = botService.listBots();
+            if (bots.isEmpty()) {
+                sendMessage(chatId, "No bots configured. Please add a bot first.");
+                return;
             }
+            
+            InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+            
+            for (Bot bot : bots) {
+                List<InlineKeyboardButton> row = new ArrayList<>();
+                row.add(createButton(bot.getName(), "schedule_bot_" + bot.getId()));
+                rowsInline.add(row);
+            }
+            
+            markupInline.setKeyboard(rowsInline);
+            
+            SendMessage message = new SendMessage();
+            message.setChatId(chatId);
+            message.setText("Select a bot to schedule:");
+            message.setReplyMarkup(markupInline);
+            
+            execute(message);
         } catch (Exception e) {
-            log.error("Error restarting active bots: {}", e.getMessage());
+            log.error("Error showing schedule bot menu: ", e);
+            sendMessage(chatId, "Error retrieving bots. Please try again.");
+        }
+    }
+    
+    private void handleStopSchedule(long chatId) {
+        try {
+            List<Bot> bots = botService.listBots();
+            if (bots.isEmpty()) {
+                sendMessage(chatId, "No bots configured. Please add a bot first.");
+                return;
+            }
+            
+            InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+            
+            for (Bot bot : bots) {
+                if (scheduledTasks.containsKey(bot.getId())) {
+                    List<InlineKeyboardButton> row = new ArrayList<>();
+                    row.add(createButton(bot.getName(), "stop_schedule_" + bot.getId()));
+                    rowsInline.add(row);
+                }
+            }
+            
+            if (rowsInline.isEmpty()) {
+                sendMessage(chatId, "No scheduled bots found.");
+                return;
+            }
+            
+            markupInline.setKeyboard(rowsInline);
+            
+            SendMessage message = new SendMessage();
+            message.setChatId(chatId);
+            message.setText("Select a bot to stop scheduling:");
+            message.setReplyMarkup(markupInline);
+            
+            execute(message);
+        } catch (Exception e) {
+            log.error("Error showing stop schedule menu: ", e);
+            sendMessage(chatId, "Error retrieving scheduled bots. Please try again.");
+        }
+    }
+    
+    private void stopBotScheduler(long chatId, long botId) {
+        ScheduledFuture<?> task = scheduledTasks.get(botId);
+        if (task != null) {
+            task.cancel(false);
+            scheduledTasks.remove(botId);
+            sendMessage(chatId, "Scheduling stopped for bot ID: " + botId);
+            log.info("Stopped scheduler for bot ID {}", botId);
+        } else {
+            sendMessage(chatId, "No active schedule found for this bot.");
         }
     }
 
@@ -184,16 +299,22 @@ public class TelegramBotService extends TelegramLongPollingBot {
         row2.add(createButton("📱 Post News", "post_news"));
         rowsInline.add(row2);
 
-        // Third row - Configuration and Status
+        // Third row - Scheduling
         List<InlineKeyboardButton> row3 = new ArrayList<>();
-        row3.add(createButton("⚙️ Configure", "configure"));
-        row3.add(createButton("📊 Status", "status"));
+        row3.add(createButton("⏰ Schedule", "schedule"));
+        row3.add(createButton("🚫 Stop Schedule", "stop_schedule"));
         rowsInline.add(row3);
 
-        // Fourth row - Help
+        // Fourth row - Configuration and Status
         List<InlineKeyboardButton> row4 = new ArrayList<>();
-        row4.add(createButton("❓ Help", "help"));
+        row4.add(createButton("⚙️ Configure", "configure"));
+        row4.add(createButton("📊 Status", "status"));
         rowsInline.add(row4);
+
+        // Fifth row - Help
+        List<InlineKeyboardButton> row5 = new ArrayList<>();
+        row5.add(createButton("❓ Help", "help"));
+        rowsInline.add(row5);
 
         markupInline.setKeyboard(rowsInline);
         return markupInline;
@@ -242,6 +363,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     sendHelpMessage(chatId);
                 } else if (messageText.startsWith("/status")) {
                     sendStatusMessage(chatId);
+                } else if (messageText.equals("/start_processing")) {
+                    handleStartProcessing(chatId);
+                } else if (messageText.equals("/stop_processing")) {
+                    handleStopProcessing(chatId);
+                } else if (messageText.equals("/processing_status")) {
+                    handleProcessingStatus(chatId);
                 } else {
                     // Handle user input based on current state
                     String currentState = userStates.getOrDefault(chatId, "");
@@ -346,7 +473,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         long chatId = callbackQuery.getMessage().getChatId();
 
         try {
-            // Handle bot-specific actions (stop_bot_ID, delete_bot_ID)
+            // Handle bot-specific actions (stop_bot_ID, delete_bot_ID, schedule_bot_ID, stop_schedule_ID)
             if (callbackData.startsWith("stop_bot_")) {
                 String botIdStr = callbackData.substring("stop_bot_".length());
                 try {
@@ -361,6 +488,24 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 try {
                     Long botId = Long.parseLong(botIdStr);
                     deleteBotById(chatId, botId);
+                    return;
+                } catch (NumberFormatException e) {
+                    log.error("Invalid bot ID format: {}", botIdStr);
+                }
+            } else if (callbackData.startsWith("schedule_bot_")) {
+                String botIdStr = callbackData.substring("schedule_bot_".length());
+                try {
+                    Long botId = Long.parseLong(botIdStr);
+                    handleSetScheduleForBot(chatId, botId);
+                    return;
+                } catch (NumberFormatException e) {
+                    log.error("Invalid bot ID format: {}", botIdStr);
+                }
+            } else if (callbackData.startsWith("stop_schedule_")) {
+                String botIdStr = callbackData.substring("stop_schedule_".length());
+                try {
+                    Long botId = Long.parseLong(botIdStr);
+                    stopBotScheduler(chatId, botId);
                     return;
                 } catch (NumberFormatException e) {
                     log.error("Invalid bot ID format: {}", botIdStr);
@@ -404,6 +549,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     break;
                 case "set_schedule":
                     handleSetSchedule(chatId);
+                    break;
+                case "schedule":
+                    handleScheduleBot(chatId);
+                    break;
+                case "stop_schedule":
+                    handleStopSchedule(chatId);
                     break;
                 default:
                     sendMessage(chatId, "Unknown command. Please try again.");
@@ -568,7 +719,28 @@ public class TelegramBotService extends TelegramLongPollingBot {
             return;
         }
         userStates.put(chatId, "WAITING_SCHEDULE");
-        sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 60 for hourly):");
+        sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 60 for hourly):\n\nEnter 0 to disable automatic scheduling.");
+    }
+
+    private void handleSetScheduleForBot(long chatId, long botId) {
+        try {
+            Bot bot = botService.getBotById(botId);
+            if (bot == null) {
+                sendMessage(chatId, "Bot not found. Please try again.");
+                return;
+            }
+            
+            userBots.put(chatId, bot);
+            userStates.put(chatId, "WAITING_SCHEDULE");
+            
+            sendMessage(chatId, "You selected bot: " + bot.getName() + 
+                    "\n\nPlease enter the schedule interval in minutes (e.g., 30 for every 30 minutes)." +
+                    "\n\nEnter 0 to disable automatic scheduling.");
+            
+        } catch (Exception e) {
+            log.error("Error setting schedule for bot: ", e);
+            sendMessage(chatId, "Error setting schedule. Please try again.");
+        }
     }
 
     private void sendMessage(long chatId, String text) {
@@ -649,11 +821,18 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
     
     @org.springframework.transaction.annotation.Transactional(readOnly = false)
-    private void startBotScheduler(Bot bot) {
+    private void startBotScheduler(Bot bot, int scheduleMinutes) {
         // Cancel any existing scheduled task for this bot
         ScheduledFuture<?> existingTask = scheduledTasks.get(bot.getId());
         if (existingTask != null) {
             existingTask.cancel(false);
+            scheduledTasks.remove(bot.getId());
+            log.info("Cancelled existing schedule for bot {}", bot.getName());
+        }
+        
+        if (scheduleMinutes <= 0) {
+            log.info("No schedule set for bot {}", bot.getName());
+            return;
         }
         
         // Create a new task for fetching news periodically
@@ -670,11 +849,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 log.error("Error in scheduled fetch for bot {}: {}", bot.getName(), e.getMessage());
             }
         };
-        
-        // Get the schedule from bot configuration
-        Optional<BotConfig> scheduleConfigOpt = botConfigurationRepository.findByBotAndConfigType(bot, ConfigType.SCHEDULE_MINUTES);
-        String scheduleConfig = scheduleConfigOpt.map(BotConfig::getConfigValue).orElse(null);
-        int scheduleMinutes = scheduleConfig != null ? Integer.parseInt(scheduleConfig) : 30;
 
         // Schedule the task
         ScheduledFuture<?> scheduledTask = taskScheduler.scheduleAtFixedRate(
@@ -742,7 +916,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
             botConfigurationRepository.save(scheduleConfig);
             
             // Start the bot's scheduler
-            startBotScheduler(savedBot);
+            int defaultInterval = 30; // Default interval in minutes
+            startBotScheduler(savedBot, defaultInterval);
             
             // Clear the user state
             userStates.remove(chatId);
@@ -802,7 +977,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
             // Update scheduler if schedule_minutes was changed
             if (type == ConfigType.SCHEDULE_MINUTES) {
-                startBotScheduler(bot);
+                int interval = Integer.parseInt(value);
+                startBotScheduler(bot, interval);
             }
 
             // Clear user state and show success message
@@ -848,17 +1024,19 @@ public class TelegramBotService extends TelegramLongPollingBot {
             // Stop any scheduled tasks for this bot
             stopBotScheduler(botId);
             
+            // Remove from user states and bots if present
+            userStates.remove(chatId);
+            userBots.remove(chatId);
+            
             // Delete the bot from the database
-            // Note: This assumes BotService has a deleteBot method
-            // If not, you'll need to implement it or use the repository directly
             botService.deleteBot(botId);
             
             sendMessage(chatId, String.format("✅ Bot '%s' has been deleted successfully.", bot.getName()));
             sendWelcomeMessage(chatId);
             
         } catch (Exception e) {
-            log.error("Error deleting bot: {}", e.getMessage());
-            sendMessage(chatId, "Error deleting bot. Please try again.");
+            log.error("Error deleting bot: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error deleting bot. Please try again later.");
         }
     }
 }

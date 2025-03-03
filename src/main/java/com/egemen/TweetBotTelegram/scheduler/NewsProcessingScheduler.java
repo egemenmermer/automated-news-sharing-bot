@@ -51,8 +51,27 @@ public class NewsProcessingScheduler {
         this.pexelsService = pexelsService;
     }
 
+    private boolean isSchedulerEnabled = false;
+
+    public void enableScheduler() {
+        isSchedulerEnabled = true;
+        processUnpostedNews();
+    }
+
+    public void disableScheduler() {
+        isSchedulerEnabled = false;
+    }
+
+    public boolean isSchedulerEnabled() {
+        return isSchedulerEnabled;
+    }
+
     @Scheduled(fixedDelayString = "${news.processing.interval:300000}")
     public void processUnpostedNews() {
+        if (!isSchedulerEnabled) {
+            log.info("News processing scheduler is disabled");
+            return;
+        }
         log.info("Starting news processing scheduler...");
         
         try {
