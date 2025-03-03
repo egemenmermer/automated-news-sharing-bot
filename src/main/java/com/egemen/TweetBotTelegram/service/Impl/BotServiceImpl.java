@@ -2,12 +2,15 @@ package com.egemen.TweetBotTelegram.service.Impl;
 
 import com.egemen.TweetBotTelegram.entity.Bot;
 import com.egemen.TweetBotTelegram.exception.CustomException;
-import com.egemen.TweetBotTelegram.repository.BotRepository;
+import com.egemen.TweetBotTelegram.repository.*;
 import com.egemen.TweetBotTelegram.service.BotService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -18,10 +21,31 @@ import java.util.List;
 @Service
 public class BotServiceImpl implements BotService {
 
-    private final BotRepository botRepository;
+    @PersistenceContext
+    private EntityManager entityManager;
 
-    public BotServiceImpl(BotRepository botRepository) {
+    private final BotRepository botRepository;
+    private final FetchLogsRepository fetchLogsRepository;
+    private final BotConfigRepository botConfigRepository;
+    private final NewsRepository newsRepository;
+    private final SummarizedNewsRepository summarizedNewsRepository;
+    private final PostLogsRepository postLogsRepository;
+    private final BotLogsRepository botLogsRepository;
+
+    public BotServiceImpl(BotRepository botRepository,
+                         FetchLogsRepository fetchLogsRepository,
+                         BotConfigRepository botConfigRepository,
+                         NewsRepository newsRepository,
+                         SummarizedNewsRepository summarizedNewsRepository,
+                         PostLogsRepository postLogsRepository,
+                         BotLogsRepository botLogsRepository) {
         this.botRepository = botRepository;
+        this.fetchLogsRepository = fetchLogsRepository;
+        this.botConfigRepository = botConfigRepository;
+        this.newsRepository = newsRepository;
+        this.summarizedNewsRepository = summarizedNewsRepository;
+        this.postLogsRepository = postLogsRepository;
+        this.botLogsRepository = botLogsRepository;
     }
 
     @Override
@@ -68,7 +92,10 @@ public class BotServiceImpl implements BotService {
                 .orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
     }
 
+
+
     @Override
+    @Transactional
     public void deleteBot(Long botId) {
         try {
             Bot bot = getBotById(botId);
@@ -76,7 +103,61 @@ public class BotServiceImpl implements BotService {
             log.info("Attempting to delete bot: {} (ID: {})", bot.getName(), bot.getId());
             
             try {
-                // Delete the bot and its related data
+                // Delete all related records in the correct order to avoid foreign key constraint violations
+                log.info("Deleting related records for bot: {} (ID: {})", bot.getName(), bot.getId());
+                
+                // Use JPQL to delete related records by bot
+                // This approach is more efficient than fetching and deleting individual records
+                
+                // Delete instagram posts first to avoid foreign key constraints
+                log.info("Deleting instagram posts for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM InstagramPost ip WHERE ip.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Also delete any Instagram posts that reference news from this bot
+                log.info("Deleting instagram posts referencing news from bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM InstagramPost ip WHERE ip.news IN (SELECT n FROM News n WHERE n.bot.id = :botId)")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+
+                // Delete fetch logs
+                log.info("Deleting fetch logs for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM FetchLogs f WHERE f.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Delete post logs
+                log.info("Deleting post logs for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM PostLogs p WHERE p.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Delete bot logs
+                log.info("Deleting bot logs for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM BotLogs b WHERE b.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Delete summarized news
+                log.info("Deleting summarized news for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM SummarizedNews s WHERE s.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Delete news
+                log.info("Deleting news for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM News n WHERE n.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Delete bot configurations
+                log.info("Deleting bot configurations for bot ID: {}", bot.getId());
+                entityManager.createQuery("DELETE FROM BotConfig bc WHERE bc.bot.id = :botId")
+                    .setParameter("botId", bot.getId())
+                    .executeUpdate();
+                
+                // Finally delete the bot
                 botRepository.delete(bot);
                 log.info("Successfully deleted bot: {} (ID: {})", bot.getName(), bot.getId());
             } catch (DataIntegrityViolationException e) {
