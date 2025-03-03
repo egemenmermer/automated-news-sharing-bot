@@ -38,13 +38,36 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         try {
             log.info("Creating Instagram post with caption: {}", post.getCaption());
             
-            // Use the publishPost method to avoid code duplication
+            // Check if Instagram API credentials are configured
+            if (accessToken == null || accessToken.isEmpty() || userId == null || userId.isEmpty()) {
+                String errorMessage = "Instagram API credentials not configured. Please check your environment variables.";
+                log.error(errorMessage);
+                post.setPostStatus(PostStatus.FAILED);
+                post.setErrorMessage(errorMessage);
+                post.setRetryCount(post.getRetryCount() + 1);
+                instagramPostRepository.save(post);
+                return false;
+            }
+            
+            // Validate image URL
+            if (post.getImageUrl() == null || post.getImageUrl().isEmpty()) {
+                String errorMessage = "Image URL is required for Instagram post";
+                log.error(errorMessage);
+                post.setPostStatus(PostStatus.FAILED);
+                post.setErrorMessage(errorMessage);
+                post.setRetryCount(post.getRetryCount() + 1);
+                instagramPostRepository.save(post);
+                return false;
+            }
+
+            // Use the publishPost method to create and publish the post
             publishPost(post);
             return true;
         } catch (Exception e) {
-            log.error("Error creating Instagram post: {}", e.getMessage());
+            String errorMessage = String.format("Error creating Instagram post: %s", e.getMessage());
+            log.error(errorMessage);
             post.setPostStatus(PostStatus.FAILED);
-            post.setErrorMessage(e.getMessage());
+            post.setErrorMessage(errorMessage);
             post.setRetryCount(post.getRetryCount() + 1);
             instagramPostRepository.save(post);
             return false;

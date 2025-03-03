@@ -7,5 +7,6 @@ public enum ConfigType {
     TOPIC,
     API_KEY,
     API_SECRET,
-    FETCH_AMOUNT
+    FETCH_AMOUNT,
+    SCHEDULE_MINUTES
 }

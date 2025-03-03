@@ -187,12 +187,31 @@ public class NewsServiceImpl implements NewsService {
 
     public String getBotConfig(Bot bot, ConfigType configType) {
         return botConfigurationRepository.findConfigValueByBotIdAndConfigType(bot, configType)
-                .orElseThrow(() -> new RuntimeException(
-                        String.format("Configuration %s not found for bot %d", configType, bot)));
+                .orElseGet(() -> {
+                    log.warn("Configuration {} not found for bot {}, using default value", configType, bot.getId());
+                    switch (configType) {
+                        case TOPIC:
+                            return "technology";
+                        case FETCH_AMOUNT:
+                            return "10";
+                        case MAX_RETRIES:
+                            return "3";
+                        default:
+                            return null;
+                    }
+                });
     }
 
     @Override
     public List<News> getAllNews() {
         return newsRepository.findAll();
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public List<News> getPendingNews(Long botId) {
+        Bot bot = botsRepository.findById(botId)
+                .orElseThrow(() -> new RuntimeException("Bot not found with id: " + botId));
+        return newsRepository.findByStatus(NewsStatus.PENDING);
     }
 }

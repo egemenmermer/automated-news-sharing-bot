@@ -67,4 +67,14 @@ public class BotServiceImpl implements BotService {
         return botRepository.findById(botId)
                 .orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
     }
+
+    @Override
+    public void deleteBot(Long botId) {
+        try {
+            Bot bot = getBotById(botId);
+            botRepository.delete(bot);
+        } catch (Exception e) {
+            throw new CustomException(new Exception("Error deleting bot: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }

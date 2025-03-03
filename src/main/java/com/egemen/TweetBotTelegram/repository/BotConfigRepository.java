@@ -19,5 +19,8 @@ public interface BotConfigRepository extends JpaRepository<BotConfig, Long> {
 
     @Query("SELECT bc FROM BotConfig bc WHERE bc.bot = :bot")
     List<BotConfig> findBotConfigurationsByBot(@Param("bot") Bot bot);
+    
+    @Query("SELECT bc FROM BotConfig bc WHERE bc.bot = :bot AND bc.configType = :configType")
+    Optional<BotConfig> findByBotAndConfigType(@Param("bot") Bot bot, @Param("configType") ConfigType configType);
 
 }

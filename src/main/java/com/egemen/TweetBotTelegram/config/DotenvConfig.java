@@ -26,7 +26,12 @@ public class DotenvConfig {
                 .systemProperties()
                 .load();
 
-        // Load environment variables into properties
+        // Load database configuration
+        properties.setProperty("spring.datasource.url", dotenv.get("DB_URL"));
+        properties.setProperty("spring.datasource.username", dotenv.get("DB_USERNAME"));
+        properties.setProperty("spring.datasource.password", dotenv.get("DB_PASSWORD"));
+        
+        // Load API keys and other configurations
         properties.setProperty("MEDIASTACK_API_KEY", dotenv.get("MEDIASTACK_API_KEY"));
         properties.setProperty("GEMINI_API_KEY", dotenv.get("GEMINI_API_KEY"));
         properties.setProperty("PEXELS_API_KEY", dotenv.get("PEXELS_API_KEY"));
@@ -40,6 +45,9 @@ public class DotenvConfig {
         properties.setProperty("AWS_REGION", dotenv.get("AWS_REGION"));
         properties.setProperty("APP_SCHEDULER_FETCH_NEWS_RATE", dotenv.get("APP_SCHEDULER_FETCH_NEWS_RATE", "300000"));
         properties.setProperty("APP_SCHEDULER_POST_RATE", dotenv.get("APP_SCHEDULER_POST_RATE", "600000"));
+
+        // Set default driver class name
+        properties.setProperty("spring.datasource.driver-class-name", "org.postgresql.Driver");
 
         return properties;
     }

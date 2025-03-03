@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -51,25 +52,30 @@ public class NewsProcessingScheduler {
     }
 
     @Scheduled(fixedDelayString = "${news.processing.interval:300000}")
-    @Transactional
     public void processUnpostedNews() {
         log.info("Starting news processing scheduler...");
         
         try {
+            // Process news in smaller batches with individual transactions
             List<News> unpostedNews = newsRepository.findByStatus(NewsStatus.PENDING, PageRequest.of(0, batchSize));
             log.info("Found {} unposted news articles", unpostedNews.size());
             
             for (News news : unpostedNews) {
-                try {
-                    processNewsItem(news);
-                } catch (Exception e) {
-                    log.error("Error processing news item {}: {}", news.getId(), e.getMessage());
-                    news.setStatus(NewsStatus.FAILED);
-                    newsRepository.save(news);
-                }
+                processNewsItemWithTransaction(news);
             }
         } catch (Exception e) {
-            log.error("Error in news processing scheduler: {}", e.getMessage());
+            log.error("Error in news processing scheduler: {}", e.getMessage(), e);
+        }
+    }
+    
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void processNewsItemWithTransaction(News news) {
+        try {
+            processNewsItem(news);
+        } catch (Exception e) {
+            log.error("Error processing news item {}: {}", news.getId(), e.getMessage());
+            news.setStatus(NewsStatus.FAILED);
+            newsRepository.save(news);
         }
     }
 
