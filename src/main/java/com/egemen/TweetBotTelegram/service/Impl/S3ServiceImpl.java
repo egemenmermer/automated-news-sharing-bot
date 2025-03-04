@@ -7,6 +7,7 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.egemen.TweetBotTelegram.service.S3Service;
@@ -21,6 +22,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import com.amazonaws.HttpMethod;
 
 import javax.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
@@ -29,6 +31,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
 
 @Slf4j
@@ -80,31 +84,54 @@ public class S3ServiceImpl implements S3Service {
     }
 
     @Override
-    public String uploadFile(byte[] fileBytes, String fileName, String contentType) {
+    public String uploadFile(byte[] fileBytes, String key, String contentType) {
         try {
-            log.info("Uploading file to S3: {}", fileName);
+            log.info("Uploading file to S3: {}", key);
             
             ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(fileBytes.length);
             metadata.setContentType(contentType);
-            
-            InputStream inputStream = new ByteArrayInputStream(fileBytes);
-            
-            // Create a PutObjectRequest without ACL
-            PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, fileName, inputStream, metadata);
-            
-            // Upload the file
+            metadata.setContentLength(fileBytes.length);
+
+            PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, key,
+                new ByteArrayInputStream(fileBytes), metadata);
             s3Client.putObject(putObjectRequest);
-            
-            // Generate the URL
-            String fileUrl = s3Client.getUrl(bucketName, fileName).toString();
-            log.info("File uploaded successfully to S3: {}", fileUrl);
-            
-            return fileUrl;
+
+            return s3Client.getUrl(bucketName, key).toString();
         } catch (Exception e) {
             log.error("Error uploading file to S3: {}", e.getMessage());
-            // Return a fallback URL
-            return "https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg";
+            return null;
+        }
+    }
+
+    @Override
+    public String uploadFileAndGetPresignedUrl(byte[] fileBytes, String key, String contentType, int expirationInSeconds) {
+        try {
+            log.info("Uploading file to S3: {}", key);
+            
+            // Upload the file
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentType(contentType);
+            metadata.setContentLength(fileBytes.length);
+
+            PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, key,
+                new ByteArrayInputStream(fileBytes), metadata);
+            s3Client.putObject(putObjectRequest);
+
+            log.info("File uploaded successfully to S3: {}", key);
+
+            // Generate presigned URL
+            GeneratePresignedUrlRequest generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucketName, key)
+                .withMethod(HttpMethod.GET)
+                .withExpiration(Date.from(Instant.now().plusSeconds(expirationInSeconds)));
+
+            URL url = s3Client.generatePresignedUrl(generatePresignedUrlRequest);
+            log.info("Generated presigned URL: {}", url);
+            
+            return url.toString();
+
+        } catch (Exception e) {
+            log.error("Error uploading file to S3 and generating presigned URL: {}", e.getMessage());
+            return null;
         }
     }
 

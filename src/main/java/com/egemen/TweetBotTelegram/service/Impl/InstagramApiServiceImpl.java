@@ -29,6 +29,9 @@ import java.util.UUID;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import java.nio.file.Files;
+import java.util.Base64;
+
 @Slf4j
 @Service
 public class InstagramApiServiceImpl implements InstagramApiService {
@@ -459,23 +462,48 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
     private String createMediaContainer(File imageFile, String caption) {
         try {
-            String url = String.format("%s/%s/media", API_URL, userId);
+            String url = "https://graph.instagram.com/v12.0/me/media";
             
-            // Create form data
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("access_token", accessToken);
-            body.add("caption", caption);
-            body.add("image", new FileSystemResource(imageFile));
+            // Upload to S3 and get a pre-signed URL that's valid for 1 hour
+            String s3Key = "instagram_" + UUID.randomUUID().toString() + ".jpg";
+            byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+            String imageUrl = s3Service.uploadFileAndGetPresignedUrl(imageBytes, s3Key, "image/jpeg", 3600); // 1 hour expiry
+            
+            if (imageUrl == null || imageUrl.isEmpty()) {
+                log.error("Failed to upload image to S3");
+                return null;
+            }
+            
+            log.info("Image uploaded to S3 with presigned URL: {}", imageUrl);
+            
+            // Build URL with access token as query parameter
+            url = UriComponentsBuilder.fromHttpUrl(url)
+                .queryParam("access_token", accessToken)
+                .toUriString();
             
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            // Create form data
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("image_url", imageUrl);
+            body.add("caption", caption);
+            body.add("media_type", "IMAGE");
+            
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(body, headers);
+            
+            log.info("Sending request to Instagram API: {} with image URL: {}", url, imageUrl);
             
             ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return (String) response.getBody().get("id");
+                String containerId = (String) response.getBody().get("id");
+                log.info("Successfully created media container with ID: {}", containerId);
+                
+                // Wait a bit for the container to be ready
+                Thread.sleep(5000);
+                
+                return containerId;
             }
             
             log.error("Failed to create media container: {}", response.getBody());
@@ -489,21 +517,31 @@ public class InstagramApiServiceImpl implements InstagramApiService {
 
     private String publishMediaContainer(String containerId) {
         try {
-            String url = String.format("%s/%s/media_publish", API_URL, userId);
+            Thread.sleep(3000);
+            
+            String url = "https://graph.instagram.com/v12.0/me/media_publish";
+            
+            // Build URL with access token as query parameter
+            url = UriComponentsBuilder.fromHttpUrl(url)
+                .queryParam("access_token", accessToken)
+                .toUriString();
             
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setContentType(MediaType.APPLICATION_JSON);
             
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("access_token", accessToken);
-            body.add("creation_id", containerId);
+            Map<String, Object> body = new HashMap<>();
+            body.put("creation_id", containerId);
             
-            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(body, headers);
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            
+            log.info("Publishing media container with ID: {}", containerId);
             
             ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return (String) response.getBody().get("id");
+                String mediaId = (String) response.getBody().get("id");
+                log.info("Successfully published media with ID: {}", mediaId);
+                return mediaId;
             }
             
             log.error("Failed to publish media: {}", response.getBody());
