@@ -26,6 +26,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.sql.Timestamp;
@@ -233,7 +234,7 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public List<News> getPendingNews(Long botId) {
         Bot bot = botsRepository.findById(botId)
                 .orElseThrow(() -> new RuntimeException("Bot not found with id: " + botId));
@@ -241,49 +242,49 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public News saveNews(News news) {
         log.info("Saving news: {}", news.getTitle());
         return newsRepository.save(news);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public Optional<News> getNewsById(Long id) {
         log.info("Getting news with ID: {}", id);
         return newsRepository.findById(id);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void deleteNews(Long id) {
         log.info("Deleting news with ID: {}", id);
         newsRepository.deleteById(id);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<News> getNewsByStatus(NewsStatus status) {
         log.info("Getting news with status: {}", status);
         return newsRepository.findByStatus(status);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<News> getNewsByBot(Bot bot) {
         log.info("Getting news for bot: {}", bot.getName());
         return newsRepository.findByBot(bot);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<News> getNewsByBotAndStatus(Bot bot, NewsStatus status) {
         log.info("Getting news for bot: {} with status: {}", bot.getName(), status);
         return newsRepository.findByBotAndStatus(bot, status);
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void updateNewsStatus(Long id, NewsStatus status) {
         log.info("Updating news status for ID: {} to: {}", id, status);
         
@@ -299,23 +300,38 @@ public class NewsServiceImpl implements NewsService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void markNewsAsPosted(Long id) {
-        log.info("Marking news as posted for ID: {}", id);
-        updateNewsStatus(id, NewsStatus.POSTED);
+        try {
+            News news = newsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("News not found with id: " + id));
+            news.setStatus(NewsStatus.POSTED);
+            newsRepository.save(news);
+            log.info("Marked news {} as POSTED", id);
+        } catch (Exception e) {
+            log.error("Error marking news {} as posted: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to mark news as posted", e);
+        }
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void markNewsAsFailed(Long id) {
-        log.info("Marking news as failed for ID: {}", id);
-        updateNewsStatus(id, NewsStatus.FAILED);
+        try {
+            News news = newsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("News not found with id: " + id));
+            news.setStatus(NewsStatus.FAILED);
+            newsRepository.save(news);
+            log.info("Marked news {} as FAILED", id);
+        } catch (Exception e) {
+            log.error("Error marking news {} as failed: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to mark news as failed", e);
+        }
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<News> getPendingNews(Bot bot, int limit) {
-        log.info("Getting pending news for bot: {} with limit: {}", bot.getName(), limit);
         return newsRepository.findByBotAndStatusOrderByPublishedAtDesc(bot, NewsStatus.PENDING, limit);
     }
 }

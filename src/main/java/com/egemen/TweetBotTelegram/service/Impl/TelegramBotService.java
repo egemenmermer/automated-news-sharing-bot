@@ -1032,47 +1032,48 @@ public class TelegramBotService extends TelegramLongPollingBot {
             
             News news = pendingNews.get(0);
             
-            // Check if this news has already been attempted
-            if (news.getStatus() != NewsStatus.PENDING) {
-                log.info("Skipping news article as it's already been processed: {}", news.getTitle());
-                return;
-            }
-            
-            // Try to post to Instagram
-            String caption = news.getTitle();
-            if (caption.length() > 100) {
-                caption = caption.substring(0, 97) + "...";
-            }
-            
-            // Add hashtags
-            String[] keywords = news.getTitle().split(" ");
-            List<String> hashtags = new ArrayList<>();
-            for (String keyword : keywords) {
-                if (keyword.length() > 3 && !isCommonWord(keyword)) {
-                    hashtags.add("#" + keyword.replaceAll("[^a-zA-Z0-9]", ""));
+            try {
+                // Try to post to Instagram
+                String caption = news.getTitle();
+                if (caption.length() > 100) {
+                    caption = caption.substring(0, 97) + "...";
                 }
-                if (hashtags.size() >= 5) break;
-            }
-            
-            caption = caption + " " + String.join(" ", hashtags);
-            
-            // Create and post
-            String mediaId = instagramApiService.createPostFromNews(caption, news.getImageUrl());
-            
-            if (mediaId != null) {
-                // Successfully posted
-                newsService.markNewsAsPosted(news.getId());
-                sendMessage(chatId, "Posted article to Instagram: " + news.getTitle());
-            } else {
-                // Failed to post
+                
+                // Add hashtags
+                String[] keywords = news.getTitle().split(" ");
+                List<String> hashtags = new ArrayList<>();
+                for (String keyword : keywords) {
+                    if (keyword.length() > 3 && !isCommonWord(keyword)) {
+                        hashtags.add("#" + keyword.replaceAll("[^a-zA-Z0-9]", ""));
+                    }
+                    if (hashtags.size() >= 5) break;
+                }
+                
+                caption = caption + " " + String.join(" ", hashtags);
+                
+                // Create and post
+                String mediaId = instagramApiService.createPostFromNews(caption, news.getImageUrl());
+                
+                if (mediaId != null) {
+                    // Successfully posted
+                    newsService.markNewsAsPosted(news.getId());
+                    sendMessage(chatId, "Posted article to Instagram: " + news.getTitle());
+                } else {
+                    // Failed to post
+                    newsService.markNewsAsFailed(news.getId());
+                    sendMessage(chatId, "Failed to post article: " + news.getTitle());
+                    log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
+                }
+            } catch (Exception e) {
+                // Make sure to mark as failed if there's an exception
                 newsService.markNewsAsFailed(news.getId());
-                sendMessage(chatId, "Failed to post article: " + news.getTitle());
-                log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
+                log.error("Error posting article: {} - {}", news.getTitle(), e.getMessage(), e);
+                sendMessage(chatId, "Error posting article: " + e.getMessage());
             }
             
         } catch (Exception e) {
-            log.error("Error posting article: {}", e.getMessage(), e);
-            sendMessage(chatId, "Error posting article: " + e.getMessage());
+            log.error("Error in postOneArticle: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error processing article: " + e.getMessage());
         }
     }
 

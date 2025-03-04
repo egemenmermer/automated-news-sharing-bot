@@ -24,7 +24,7 @@ public interface NewsService {
     List<News> getNewsByStatus(NewsStatus status);
     List<News> getNewsByBot(Bot bot);
     List<News> getNewsByBotAndStatus(Bot bot, NewsStatus status);
-    void updateNewsStatus(Long id, NewsStatus status);
+    void updateNewsStatus(Long newsId, NewsStatus status);
     void markNewsAsPosted(Long id);
     void markNewsAsFailed(Long id);
     List<News> getPendingNews(Bot bot, int limit);
