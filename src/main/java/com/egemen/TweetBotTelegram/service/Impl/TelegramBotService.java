@@ -1033,6 +1033,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
             News news = pendingNews.get(0);
             
             try {
+                // Mark the news as IN_PROGRESS to prevent duplicate processing
+                newsService.updateNewsStatus(news.getId(), NewsStatus.IN_PROGRESS);
+                
                 // Try to post to Instagram
                 String caption = news.getTitle();
                 if (caption.length() > 100) {
@@ -1064,6 +1067,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     sendMessage(chatId, "Failed to post article: " + news.getTitle());
                     log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
                 }
+                
             } catch (Exception e) {
                 // Make sure to mark as failed if there's an exception
                 newsService.markNewsAsFailed(news.getId());

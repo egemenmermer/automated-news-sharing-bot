@@ -9,27 +9,25 @@ import com.egemen.TweetBotTelegram.service.PexelsService;
 import com.egemen.TweetBotTelegram.service.S3Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
-import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
 @Slf4j
 @Service
@@ -70,109 +68,82 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             // Check if Instagram API credentials are configured
             if (accessToken == null || accessToken.isEmpty() || userId == null || userId.isEmpty()) {
                 log.error("Instagram API credentials not configured");
-                post.setErrorMessage("Instagram API credentials not configured");
-                post.setPostStatus(PostStatus.FAILED);
-                
-                // Add try-catch for the save operation
-                try {
-                    instagramPostRepository.save(post);
-                    log.info("Saved failed post status to database");
-                } catch (Exception ex) {
-                    log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
-                }
+                saveFailedPost(post, "Instagram API credentials not configured");
                 return false;
             }
             
-            // Check if image URL is valid
+            // Check if image URL is valid and get a proper image URL if needed
             String imageUrl = post.getImageUrl();
-            if (imageUrl == null || imageUrl.isEmpty()) {
-                // If no image URL is provided, use the image prompt to search for an image
-                if (post.getImagePrompt() != null && !post.getImagePrompt().isEmpty()) {
-                    log.info("No image URL provided, searching for image using prompt: {}", post.getImagePrompt());
-                    imageUrl = pexelsService.searchImage(post.getImagePrompt());
-                    post.setImageUrl(imageUrl);
-                } else {
-                    log.error("No image URL or prompt provided");
-                    post.setErrorMessage("No image URL or prompt provided");
-                    post.setPostStatus(PostStatus.FAILED);
-                    instagramPostRepository.save(post);
-                    return false;
-                }
-            } else if (!imageUrl.startsWith("http")) {
-                // If the image URL is not a valid URL (e.g., it's a local path or a description),
-                // use it as a search query to find an image
-                log.error("Image URL must be a publicly accessible URL, not a local path: {}", imageUrl);
+            if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.startsWith("http")) {
+                // If no valid image URL, try to get one from Pexels using the image prompt
                 String searchQuery = post.getImagePrompt();
                 if (searchQuery == null || searchQuery.isEmpty()) {
-                    searchQuery = post.getTitle() != null ? post.getTitle() : "news";
+                    searchQuery = post.getTitle();
                 }
+                
+                // Remove "Image prompt:" prefix if present
+                if (searchQuery != null && searchQuery.startsWith("Image prompt:")) {
+                    searchQuery = searchQuery.substring("Image prompt:".length()).trim();
+                }
+                
+                log.info("Searching for image with query: {}", searchQuery);
                 imageUrl = pexelsService.searchImage(searchQuery);
+                
+                if (imageUrl == null || imageUrl.isEmpty()) {
+                    log.error("Failed to find a suitable image");
+                    saveFailedPost(post, "Failed to find a suitable image");
+                    return false;
+                }
+                
+                // Update the post with the new image URL
                 post.setImageUrl(imageUrl);
             }
-            
+
             // Create an image with text overlay
-            String title = post.getTitle() != null ? post.getTitle() : "";
-            String subtitle = post.getCaption() != null ? extractSubtitle(post.getCaption()) : "";
-            
-            File processedImageFile = imageProcessingService.createNewsImageWithText(imageUrl, title, subtitle);
-            
-            if (processedImageFile == null) {
-                log.error("Failed to create image with text overlay");
-                post.setErrorMessage("Failed to create image with text overlay");
-                post.setPostStatus(PostStatus.FAILED);
-                instagramPostRepository.save(post);
-                return false;
-            }
-            
-            // Upload the processed image to S3
-            String s3ImageUrl = s3Service.uploadFile(
-                Files.readAllBytes(processedImageFile.toPath()),
-                "instagram_" + UUID.randomUUID() + ".jpg",
-                "image/jpeg"
+            File processedImageFile = imageProcessingService.createNewsImageWithText(
+                imageUrl,
+                post.getTitle() != null ? post.getTitle() : "",
+                post.getCaption() != null ? post.getCaption() : ""
             );
             
-            // Delete the temporary file
-            processedImageFile.delete();
-            
-            // Attempt to publish the post
-            String postId = publishPostDirectly(post.getCaption(), s3ImageUrl);
-            
-            if (postId != null) {
-                post.setInstagramPostId(postId);
-                post.setPostedAt(Timestamp.valueOf(LocalDateTime.now()));
-                post.setPostStatus(PostStatus.POSTED);
-                
-                // Add explicit logging before save
-                log.info("About to save Instagram post to database: {}", post);
-                InstagramPost savedPost = instagramPostRepository.save(post);
-                log.info("Saved Instagram post with ID: {}", savedPost.getId());
-                
-                return true;
-            } else {
-                post.setErrorMessage("Failed to publish post to Instagram");
-                post.setPostStatus(PostStatus.FAILED);
-                
-                // Add try-catch for the save operation
-                try {
-                    instagramPostRepository.save(post);
-                    log.info("Saved failed post status to database");
-                } catch (Exception ex) {
-                    log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
-                }
+            if (processedImageFile == null) {
+                saveFailedPost(post, "Failed to process image");
                 return false;
             }
-        } catch (Exception e) {
-            log.error("Error creating Instagram post: {}", e.getMessage(), e);
-            post.setErrorMessage(e.getMessage());
-            post.setPostStatus(PostStatus.FAILED);
-            
-            // Add try-catch for the save operation
+
             try {
+                // Create the container
+                String containerId = createMediaContainer(processedImageFile, post.getCaption());
+                if (containerId == null) {
+                    saveFailedPost(post, "Failed to create media container");
+                    return false;
+                }
+
+                // Publish the container
+                String mediaId = publishMediaContainer(containerId);
+                if (mediaId == null) {
+                    saveFailedPost(post, "Failed to publish media container");
+                    return false;
+                }
+
+                // Update post status
+                post.setInstagramPostId(mediaId);
+                post.setPostStatus(PostStatus.POSTED);
+                post.setPostedAt(new Timestamp(System.currentTimeMillis()));
                 instagramPostRepository.save(post);
-                log.info("Saved failed post status to database");
-            } catch (Exception ex) {
-                log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
+                
+                return true;
+
+            } finally {
+                // Clean up temp file
+                if (processedImageFile != null && processedImageFile.exists()) {
+                    processedImageFile.delete();
+                }
             }
+            
+        } catch (Exception e) {
+            log.error("Error creating post: {}", e.getMessage(), e);
+            saveFailedPost(post, e.getMessage());
             return false;
         }
     }
@@ -483,6 +454,76 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         } catch (Exception e) {
             log.error("Error uploading media container: {}", e.getMessage(), e);
             return null;
+        }
+    }
+
+    private String createMediaContainer(File imageFile, String caption) {
+        try {
+            String url = String.format("%s/%s/media", API_URL, userId);
+            
+            // Create form data
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("access_token", accessToken);
+            body.add("caption", caption);
+            body.add("image", new FileSystemResource(imageFile));
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return (String) response.getBody().get("id");
+            }
+            
+            log.error("Failed to create media container: {}", response.getBody());
+            return null;
+            
+        } catch (Exception e) {
+            log.error("Error creating media container: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private String publishMediaContainer(String containerId) {
+        try {
+            String url = String.format("%s/%s/media_publish", API_URL, userId);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("access_token", accessToken);
+            body.add("creation_id", containerId);
+            
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(body, headers);
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return (String) response.getBody().get("id");
+            }
+            
+            log.error("Failed to publish media: {}", response.getBody());
+            return null;
+            
+        } catch (Exception e) {
+            log.error("Error publishing media: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private void saveFailedPost(InstagramPost post, String errorMessage) {
+        try {
+            post.setErrorMessage(errorMessage);
+            post.setPostStatus(PostStatus.FAILED);
+            post.setRetryCount(post.getRetryCount() + 1);
+            instagramPostRepository.save(post);
+            log.info("Saved failed post status to database");
+        } catch (Exception ex) {
+            log.error("Failed to save error status to database: {}", ex.getMessage(), ex);
         }
     }
 }
