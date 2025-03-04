@@ -109,4 +109,6 @@ ALTER TABLE instagram_posts ADD CONSTRAINT fk_instagram_posts_bot
 
 ALTER TABLE instagram_posts DROP CONSTRAINT IF EXISTS fk_instagram_posts_news;
 ALTER TABLE instagram_posts ADD CONSTRAINT fk_instagram_posts_news 
-    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE SET NULL; 
+    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE SET NULL;
+
+-- Any fixes if needed 

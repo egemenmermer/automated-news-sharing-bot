@@ -95,3 +95,5 @@ CREATE TABLE post_logs (
 CREATE INDEX idx_news_status ON news(status);
 CREATE INDEX idx_instagram_posts_status ON instagram_posts(post_status);
 CREATE INDEX idx_instagram_posts_bot_id ON instagram_posts(bot_id);
+
+-- This is handled by Hibernate now (we saw the tables being created in the logs)

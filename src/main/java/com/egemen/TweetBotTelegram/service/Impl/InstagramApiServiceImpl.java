@@ -31,6 +31,10 @@ import org.springframework.util.MultiValueMap;
 
 import java.nio.file.Files;
 import java.util.Base64;
+import java.awt.image.BufferedImage;
+import java.awt.Font;
+import java.awt.Color;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
