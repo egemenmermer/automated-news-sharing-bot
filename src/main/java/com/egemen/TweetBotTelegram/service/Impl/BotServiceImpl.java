@@ -109,6 +109,31 @@ public class BotServiceImpl implements BotService {
     @Override
     @Transactional
     public void deleteBot(Long id) {
-        botRepository.deleteById(id);
+        try {
+            log.info("Deleting bot with ID: {}", id);
+            
+            // First delete all related configurations
+            botConfigRepository.deleteByBotId(id);
+            
+            // Then delete all related news
+            newsRepository.deleteByBotId(id);
+            
+            // Delete all related fetch logs
+            fetchLogsRepository.deleteByBotId(id);
+            
+            // Delete all related post logs
+            postLogsRepository.deleteByBotId(id);
+            
+            // Delete all related bot logs
+            botLogsRepository.deleteByBotId(id);
+            
+            // Finally delete the bot
+            botRepository.deleteById(id);
+            
+            log.info("Successfully deleted bot and all related entities with ID: {}", id);
+        } catch (Exception e) {
+            log.error("Error deleting bot with ID {}: {}", id, e.getMessage());
+            throw new RuntimeException("Failed to delete bot: " + e.getMessage(), e);
+        }
     }
 }

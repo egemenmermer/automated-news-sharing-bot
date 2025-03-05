@@ -11,4 +11,6 @@ import org.springframework.stereotype.Repository;
 public interface PostLogsRepository extends JpaRepository<PostLogs, Long> {
     @Query("SELECT COUNT(p) FROM PostLogs p WHERE p.bot = :bot")
     long countByBot(@Param("bot") Bot bot);
+
+    void deleteByBotId(Long botId);
 }

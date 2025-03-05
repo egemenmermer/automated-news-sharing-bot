@@ -548,15 +548,139 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void showConfigMenu(long chatId) {
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId);
-        message.setText("⚙️ Configuration Menu\n\nPlease select what you want to configure:");
-        message.setReplyMarkup(getConfigMenuKeyboard());
-
         try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Error showing config menu: ", e);
+            // Get all bots first
+            List<Bot> bots = botService.listBots();
+            if (bots.isEmpty()) {
+                sendMessage(chatId, "No bots found. Please create a bot first.");
+                showMainMenu(chatId);
+                return;
+            }
+
+            // If there's no selected bot for this user, select the first one
+            if (!userBots.containsKey(chatId)) {
+                userBots.put(chatId, bots.get(0));
+            }
+
+            Bot currentBot = userBots.get(chatId);
+            
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+
+            // Topic configuration button
+            List<InlineKeyboardButton> row1 = new ArrayList<>();
+            InlineKeyboardButton topicButton = new InlineKeyboardButton();
+            topicButton.setText("📰 Set Topic");
+            topicButton.setCallbackData("set_topic");
+            row1.add(topicButton);
+            keyboard.add(row1);
+
+            // Fetch amount configuration button
+            List<InlineKeyboardButton> row2 = new ArrayList<>();
+            InlineKeyboardButton fetchAmountButton = new InlineKeyboardButton();
+            fetchAmountButton.setText("🔢 Set Fetch Amount");
+            fetchAmountButton.setCallbackData("set_fetch_amount");
+            row2.add(fetchAmountButton);
+            keyboard.add(row2);
+
+            // Schedule configuration button
+            List<InlineKeyboardButton> row3 = new ArrayList<>();
+            InlineKeyboardButton scheduleButton = new InlineKeyboardButton();
+            scheduleButton.setText("⏰ Set Schedule");
+            scheduleButton.setCallbackData("set_schedule");
+            row3.add(scheduleButton);
+            keyboard.add(row3);
+
+            // Back button
+            List<InlineKeyboardButton> row4 = new ArrayList<>();
+            InlineKeyboardButton backButton = new InlineKeyboardButton();
+            backButton.setText("◀️ Back to Main Menu");
+            backButton.setCallbackData("back_to_main");
+            row4.add(backButton);
+            keyboard.add(row4);
+
+            markup.setKeyboard(keyboard);
+
+            String message = String.format("⚙️ Configuration Menu for bot: %s\n\n" +
+                    "Current settings:\n" +
+                    "• Topic: %s\n" +
+                    "• Fetch Amount: %s\n" +
+                    "• Schedule: Every %s minutes",
+                    currentBot.getName(),
+                    getBotConfig(currentBot, ConfigType.TOPIC, "not set"),
+                    getBotConfig(currentBot, ConfigType.FETCH_AMOUNT, "10"),
+                    getBotConfig(currentBot, ConfigType.SCHEDULE_MINUTES, "30"));
+
+            SendMessage configMessage = new SendMessage();
+            configMessage.setChatId(String.valueOf(chatId));
+            configMessage.setText(message);
+            configMessage.setReplyMarkup(markup);
+
+            execute(configMessage);
+        } catch (Exception e) {
+            log.error("Error showing config menu: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error showing configuration menu. Please try again.");
+        }
+    }
+
+    private String getBotConfig(Bot bot, ConfigType configType, String defaultValue) {
+        Optional<BotConfig> config = botConfigurationRepository.findByBotAndConfigType(bot, configType);
+        return config.map(BotConfig::getConfigValue).orElse(defaultValue);
+    }
+
+    private void handleCallbackQuery(long chatId, String callbackData) {
+        try {
+            switch (callbackData) {
+                case "create_bot":
+                    userStates.put(chatId, "WAITING_BOT_NAME");
+                    sendMessage(chatId, "Please enter a name for your new bot:");
+                    break;
+                case "configure_bot":
+                    showConfigMenu(chatId);
+                    break;
+                case "post_news":
+                    handlePostNews(chatId);
+                    break;
+                case "back_to_main":
+                    userStates.remove(chatId);
+                    showMainMenu(chatId);
+                    break;
+                case "set_topic":
+                case "set_fetch_amount":
+                case "set_schedule":
+                    handleConfigOption(chatId, callbackData);
+                    break;
+                default:
+                    sendMessage(chatId, "Invalid option selected.");
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("Error handling callback query: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error processing your request. Please try again.");
+        }
+    }
+
+    private void handleConfigOption(long chatId, String option) {
+        Bot currentBot = userBots.get(chatId);
+        if (currentBot == null) {
+            sendMessage(chatId, "⚠️ No bot selected. Please create or select a bot first.");
+            showMainMenu(chatId);
+            return;
+        }
+
+        switch (option) {
+            case "set_topic":
+                userStates.put(chatId, "waiting_for_topic");
+                sendMessage(chatId, "Please enter the topic for news fetching (e.g., technology, sports, business):");
+                break;
+            case "set_fetch_amount":
+                userStates.put(chatId, "waiting_for_fetch_amount");
+                sendMessage(chatId, "Please enter the number of articles to fetch (1-50):");
+                break;
+            case "set_schedule":
+                userStates.put(chatId, "waiting_for_schedule");
+                sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 30 for every 30 minutes):");
+                break;
         }
     }
 

@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BotLogsRepository extends JpaRepository<BotLogs, Long> {
+    void deleteByBotId(Long botId);
 }
