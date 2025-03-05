@@ -31,4 +31,6 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     List<News> findByBotAndStatusOrderByPublishedAtDesc(Bot bot, NewsStatus status, int limit);
     
     boolean existsByTitleAndBot(String title, Bot bot);
+
+    List<News> findByBotAndStatusOrderByPublishedAtDesc(Bot bot, NewsStatus status, Pageable pageable);
 }

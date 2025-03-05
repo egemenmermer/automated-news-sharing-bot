@@ -63,12 +63,9 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
 
     @Override
     public BufferedImage addTextToImage(BufferedImage sourceImage, String title, String content) {
-        // Add null checks for title and content
-        if (title == null || title.trim().isEmpty()) {
-            title = "No title available";
-        }
+        // Add null checks for content
         if (content == null || content.trim().isEmpty()) {
-            content = "No content available";
+            content = title;  // Use title as content if no content available
         }
 
         int width = sourceImage.getWidth();
@@ -95,20 +92,12 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
         g2d.setColor(ACCENT_COLOR);
         drawCenteredString(g2d, LOGO_TEXT, width / 2, PADDING + 48);
         
-        // Draw title
-        Font titleFont = new Font("Arial", Font.BOLD, 36);
-        g2d.setFont(titleFont);
+        // Draw content with larger font and centered position
+        Font contentFont = new Font("Arial", Font.PLAIN, 36);
+        g2d.setFont(contentFont);
         g2d.setColor(TEXT_COLOR);
-        int titleY = height / 4;
-        drawWrappedText(g2d, title, titleFont, TEXT_COLOR, PADDING, titleY, width - (PADDING * 2));
-        
-        // Draw content
-        if (content != null && !content.isEmpty()) {
-            Font contentFont = new Font("Arial", Font.PLAIN, 28);
-            g2d.setFont(contentFont);
-            int contentY = height / 2;
-            drawWrappedText(g2d, content, contentFont, TEXT_COLOR, PADDING, contentY, width - (PADDING * 2));
-        }
+        int contentY = height / 2 - 50; // Move text up a bit from center
+        drawWrappedText(g2d, content, contentFont, TEXT_COLOR, PADDING, contentY, width - (PADDING * 2));
         
         g2d.dispose();
         return resultImage;

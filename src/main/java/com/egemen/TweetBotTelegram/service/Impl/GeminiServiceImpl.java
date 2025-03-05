@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 @Slf4j
 @Service
@@ -23,6 +24,7 @@ public class GeminiServiceImpl implements GeminiService {
     private final String apiKey;
     private final RestTemplate restTemplate;
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent";
+    private final Random random = new Random();
 
     @Autowired
     public GeminiServiceImpl(String geminiApiKey) {
@@ -178,17 +180,19 @@ public class GeminiServiceImpl implements GeminiService {
         if (prompt.toLowerCase().contains("image prompt") || 
             prompt.toLowerCase().contains("picture") || 
             prompt.toLowerCase().contains("visual")) {
-            return "A professional news image showing: " + 
-                StringUtils.abbreviate(prompt, 100);
+            String title = extractTitle(prompt);
+            // Create a more specific image prompt based on the title
+            return "A professional photograph showing: " + title;
         } 
         else if (prompt.toLowerCase().contains("summarize") || 
                  prompt.toLowerCase().contains("summary")) {
             String title = extractTitle(prompt);
-            return StringUtils.abbreviate(title, 150) + 
-                "\n\n#tech #technology #technews #innovation";
+            return title + "\n\n#tech #technology #technews #innovation";
         } 
         else {
-            return "Generated content unavailable. Please try again later.";
+            // Use the actual title instead of generic text
+            String title = extractTitle(prompt);
+            return title;
         }
     }
 
@@ -219,13 +223,47 @@ public class GeminiServiceImpl implements GeminiService {
 
     public String generateShortSummary(String title, int maxLength) {
         String prompt = String.format(
-            "Create a very short, catchy caption for this news headline in about %d characters." +
-            "Make it engaging and intriguing to make people want to read more." +
-            "\n\nHeadline: %s",
+            "Create 3 engaging, captivating Instagram captions for this news headline. " +
+            "Use emojis and relevant hashtags. Make it feel natural and exciting, like a human wrote it. " +
+            "Format as 'Caption 1: [text]'. Keep each caption under %d characters.\n\n" +
+            "Headline: %s\n\n" +
+            "Guidelines:\n" +
+            "- Use relevant emojis that match the content\n" +
+            "- Add specific hashtags related to the topic\n" +
+            "- Make it sound natural and engaging\n" +
+            "- Avoid generic tech hashtags\n" +
+            "- Create suspense/interest to read more",
             maxLength, title
         );
         
-        return generateContent(prompt);
+        try {
+            String response = generateResponse(prompt);
+            if (response != null && !response.trim().isEmpty()) {
+                // Extract one of the captions randomly
+                String[] captions = response.split("\nCaption");
+                if (captions.length > 1) {
+                    // Pick a random caption (skip first split as it's empty or header)
+                    String chosen = captions[1 + random.nextInt(captions.length - 1)];
+                    // Remove the number and colon
+                    return chosen.replaceFirst("^\\d+:\\s*", "").trim();
+                }
+            }
+            return getFallbackCaption(title);
+        } catch (Exception e) {
+            log.error("Error generating caption: {}", e.getMessage());
+            return getFallbackCaption(title);
+        }
+    }
+
+    private String getFallbackCaption(String title) {
+        // Create a more engaging fallback caption
+        if (title.toLowerCase().contains("barcelona") || title.toLowerCase().contains("barça")) {
+            return "🔵🔴 Big news from Camp Nou! Details inside 👀\n#ForçaBarça #FCBarcelona";
+        } else if (title.toLowerCase().contains("madrid")) {
+            return "⚪️ Breaking from the Bernabéu! 👀\n#HalaMadrid #RealMadrid";
+        } else {
+            return "📰 Breaking story! Click for details 👀\n" + title;
+        }
     }
 
     private String generateContent(String prompt) {

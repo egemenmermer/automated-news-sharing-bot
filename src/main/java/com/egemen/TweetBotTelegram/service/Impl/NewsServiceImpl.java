@@ -21,6 +21,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Service;
@@ -326,6 +327,10 @@ public class NewsServiceImpl implements NewsService {
     @Override
     @Transactional(readOnly = true)
     public List<News> getPendingNews(Bot bot, int limit) {
-        return newsRepository.findByBotAndStatusOrderByPublishedAtDesc(bot, NewsStatus.PENDING, limit);
+        return newsRepository.findByBotAndStatusOrderByPublishedAtDesc(
+            bot, 
+            NewsStatus.PENDING, 
+            PageRequest.of(0, limit)
+        );
     }
 }

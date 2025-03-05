@@ -5,6 +5,7 @@ import com.egemen.TweetBotTelegram.entity.BotConfig;
 import com.egemen.TweetBotTelegram.entity.InstagramPost;
 import com.egemen.TweetBotTelegram.entity.News;
 import com.egemen.TweetBotTelegram.enums.ConfigType;
+import com.egemen.TweetBotTelegram.enums.NewsStatus;
 import com.egemen.TweetBotTelegram.enums.PostStatus;
 import com.egemen.TweetBotTelegram.repository.BotConfigRepository;
 import com.egemen.TweetBotTelegram.repository.PostLogsRepository;
@@ -21,6 +22,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.scheduling.support.SimpleTriggerContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -246,19 +248,33 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void sendWelcomeMessage(long chatId) {
-        String welcomeText = "Welcome to Neural News Bot! \n\n" +
-                "I can help you manage your news posting automation.\n\n" +
-                "Please select an option from the menu below:";
-
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId);
-        message.setText(welcomeText);
-        message.setReplyMarkup(getMainMenuKeyboard());
-
         try {
+            List<Bot> bots = botService.listBots();
+            
+            InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+            
+            // First row
+            List<InlineKeyboardButton> row1 = new ArrayList<>();
+            if (bots.isEmpty()) {
+                row1.add(createInlineButton("➕ Create Bot", "create_bot"));
+            } else {
+                row1.add(createInlineButton("⚙️ Configure Bot", "config_bot"));
+                row1.add(createInlineButton("📝 Post News", "post_news"));
+            }
+            rowsInline.add(row1);
+            
+            markupInline.setKeyboard(rowsInline);
+
+            SendMessage message = new SendMessage();
+            message.setChatId(String.valueOf(chatId));
+            message.setText("Welcome to Neural News Bot! What would you like to do?");
+            message.setReplyMarkup(markupInline);
+
             execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Error sending welcome message: ", e);
+        } catch (Exception e) {
+            log.error("Error sending welcome message: {}", e.getMessage());
+            sendMessage(chatId, "Error showing menu. Please try again.");
         }
     }
 
@@ -325,6 +341,13 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private InlineKeyboardButton createButton(String text, String callbackData) {
+        InlineKeyboardButton button = new InlineKeyboardButton();
+        button.setText(text);
+        button.setCallbackData(callbackData);
+        return button;
+    }
+
+    private InlineKeyboardButton createInlineButton(String text, String callbackData) {
         InlineKeyboardButton button = new InlineKeyboardButton();
         button.setText(text);
         button.setCallbackData(callbackData);
@@ -481,17 +504,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 } catch (NumberFormatException e) {
                     log.error("Invalid bot ID format: {}", botIdStr);
                 }
-            } else if (callbackData.startsWith("stop_schedule_")) {
-                String botIdStr = callbackData.substring("stop_schedule_".length());
-                try {
-                    Long botId = Long.parseLong(botIdStr);
-                    stopBotScheduler(chatId, botId);
-                    return;
-                } catch (NumberFormatException e) {
-                    log.error("Invalid bot ID format: {}", botIdStr);
-                }
             }
-            
+
             // Handle standard menu actions
             switch (callbackData) {
                 case "add_bot":
@@ -530,12 +544,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 case "set_schedule":
                     handleSetSchedule(chatId);
                     break;
-                case "schedule":
-                    handleScheduleBot(chatId);
-                    break;
-                case "stop_schedule":
-                    handleStopSchedule(chatId);
-                    break;
                 default:
                     sendMessage(chatId, "Unknown command. Please try again.");
             }
@@ -546,6 +554,16 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void showConfigMenu(long chatId) {
+        List<Bot> bots = botService.listBots();
+        if (bots.isEmpty()) {
+            sendMessage(chatId, "Please create a bot first.");
+            return;
+        }
+
+        // Get the first bot (or let user select if multiple)
+        Bot bot = bots.get(0);
+        userBots.put(chatId, bot); // Store the selected bot for this user
+
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText("⚙️ Configuration Menu\n\nPlease select what you want to configure:");
@@ -579,7 +597,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = false)
+    @Transactional(readOnly = false)
     private void handlePostNews(long chatId) {
         try {
             List<Bot> bots = botService.listBots();
@@ -587,19 +605,42 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 sendMessage(chatId, "No bots configured. Please add a bot first.");
                 return;
             }
+
+            Bot bot = bots.get(0);
+            List<News> pendingNews = newsService.getPendingNews(bot, 1);
             
-            // Post one article manually
-            boolean posted = postOneArticle();
-            
-            if (posted) {
-                sendMessage(chatId, "Successfully posted one article to Instagram.");
-            } else {
-                sendMessage(chatId, "No pending news articles to post or posting failed.");
+            if (pendingNews.isEmpty()) {
+                sendMessage(chatId, "No pending news articles found for posting.");
+                return;
             }
 
+            News news = pendingNews.get(0);
+            
+            // Create Instagram post with all necessary information
+            InstagramPost instagramPost = new InstagramPost();
+            instagramPost.setBot(bot);
+            instagramPost.setNews(news);
+            instagramPost.setTitle(news.getTitle());
+            instagramPost.setContent(news.getContent());
+            instagramPost.setUrl(news.getUrl());
+            instagramPost.setImageUrl(news.getImageUrl());
+            instagramPost.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+            instagramPost.setPostStatus(PostStatus.PENDING);
+
+            // Try to post to Instagram
+            boolean posted = instagramApiService.createPost(instagramPost);
+
+            if (posted) {
+                newsService.updateNewsStatus(news.getId(), NewsStatus.POSTED);
+                sendMessage(chatId, "Successfully posted to Instagram: " + news.getTitle());
+            } else {
+                newsService.updateNewsStatus(news.getId(), NewsStatus.FAILED);
+                sendMessage(chatId, "Failed to post to Instagram: " + news.getTitle());
+            }
+            
         } catch (Exception e) {
-            log.error("Error posting news: ", e);
-            sendMessage(chatId, "Error posting news. Please try again later.");
+            log.error("Error in handlePostNews: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error processing article: " + e.getMessage());
         }
     }
     
@@ -1017,36 +1058,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
         } catch (Exception e) {
             log.error("Error deleting bot: {}", e.getMessage(), e);
             sendMessage(chatId, "Error deleting bot. Please try again later.");
-        }
-    }
-
-    private void postOneArticle(News news, Bot bot) {
-        try {
-            // Create Instagram post
-            InstagramPost instagramPost = new InstagramPost();
-            instagramPost.setBot(bot);
-            instagramPost.setNews(news);
-            instagramPost.setTitle(news.getTitle());
-            instagramPost.setContent(news.getContent());
-            instagramPost.setUrl(news.getUrl());
-            instagramPost.setImageUrl(news.getImageUrl());
-            instagramPost.setCreatedAt(new Timestamp(System.currentTimeMillis()));
-            instagramPost.setPostStatus(PostStatus.PENDING);
-
-            boolean posted = instagramApiService.createPost(instagramPost);
-
-            if (posted) {
-                // Update news status to POSTED after successful Instagram post
-                newsService.updateNewsStatus(news.getId(), NewsStatus.POSTED);
-                log.info("Successfully posted article from bot {}: {}", bot.getName(), news.getTitle());
-            } else {
-                log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
-                // Optionally update to FAILED status if needed
-                newsService.updateNewsStatus(news.getId(), NewsStatus.FAILED);
-            }
-        } catch (Exception e) {
-            log.error("Error posting article: {}", e.getMessage(), e);
-            newsService.updateNewsStatus(news.getId(), NewsStatus.FAILED);
         }
     }
 

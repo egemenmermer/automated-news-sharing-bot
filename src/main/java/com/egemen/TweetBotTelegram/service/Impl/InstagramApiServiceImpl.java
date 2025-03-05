@@ -75,7 +75,13 @@ public class InstagramApiServiceImpl implements InstagramApiService {
     @Override
     public boolean createPost(InstagramPost post) {
         try {
-            log.info("Creating Instagram post with caption: {}", post.getCaption());
+            // Validate post data
+            if (post == null || post.getTitle() == null || post.getTitle().trim().isEmpty()) {
+                log.error("Invalid post data: post is null or missing title");
+                return false;
+            }
+
+            log.info("Creating Instagram post with title: {}", post.getTitle());
             
             // Check if Instagram API credentials are configured
             if (accessToken == null || accessToken.isEmpty() || userId == null || userId.isEmpty()) {
@@ -87,58 +93,32 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             // Check if image URL is valid and get a proper image URL if needed
             String imageUrl = post.getImageUrl();
             if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.startsWith("http")) {
-                // If no valid image URL, try to get one from Pexels using the image prompt
-                String searchQuery = post.getImagePrompt();
-                if (searchQuery == null || searchQuery.isEmpty()) {
-                    searchQuery = post.getTitle();
-                }
-                
-                // Remove "Image prompt:" prefix if present
-                if (searchQuery != null && searchQuery.startsWith("Image prompt:")) {
-                    searchQuery = searchQuery.substring("Image prompt:".length()).trim();
-                }
+                // Use the title for image search
+                String searchQuery = post.getTitle();
                 
                 log.info("Searching for image with query: {}", searchQuery);
                 imageUrl = pexelsService.searchImage(searchQuery);
                 
                 if (imageUrl == null || imageUrl.isEmpty()) {
-                    log.error("Failed to find a suitable image");
+                    log.error("Failed to find a suitable image for: {}", post.getTitle());
                     saveFailedPost(post, "Failed to find a suitable image");
                     return false;
                 }
                 
-                // Update the post with the new image URL
                 post.setImageUrl(imageUrl);
             }
 
-            // Generate two different summaries
-            String imageText = geminiService.generateDetailedSummary(
-                post.getTitle(), 
-                post.getContent() != null ? post.getContent() : post.getTitle(),
-                400  // Longer summary for image
-            );
-
-            if (imageText == null) {
-                // If Gemini fails, use the original content
-                imageText = post.getTitle() + "\n\n" + 
-                    (post.getContent() != null ? post.getContent() : "");
+            // Generate image text using the actual title and content
+            String imageText = post.getTitle();
+            if (post.getContent() != null && !post.getContent().trim().isEmpty()) {
+                imageText += "\n\n" + post.getContent();
             }
 
-            String captionText = geminiService.generateShortSummary(
-                post.getTitle(),
-                150  // Shorter for caption
-            );
-
-            if (captionText == null) {
-                // If Gemini fails, use a shortened version of the title
-                captionText = StringUtils.abbreviate(post.getTitle(), 150);
-            }
-
-            // Create image with detailed text
+            // Create image with text
             File processedImageFile = imageProcessingService.createNewsImageWithText(
                 imageUrl,
-                post.getTitle(),
-                imageText  // Use detailed summary on image
+                post.getTitle(),  // Still pass title for fallback
+                post.getContent() != null ? post.getContent() : post.getTitle() // Use content as main text
             );
             
             if (processedImageFile == null) {
@@ -146,10 +126,19 @@ public class InstagramApiServiceImpl implements InstagramApiService {
                 return false;
             }
 
-            // Use shorter text for Instagram caption
+            // Generate caption text
+            String captionText = geminiService.generateShortSummary(
+                post.getTitle(),
+                150  // Shorter for caption
+            );
+
+            if (captionText == null || captionText.trim().isEmpty()) {
+                captionText = post.getTitle();
+            }
+
+            // Use shorter text for Instagram caption, without generic hashtags
             String finalCaption = captionText + 
-                (post.getUrl() != null ? "\n\nRead more: " + post.getUrl() : "") + 
-                "\n\n#tech #technology #technews #innovation";
+                (post.getUrl() != null ? "\n\nRead more: " + post.getUrl() : "");
 
             try {
                 // Create the container
