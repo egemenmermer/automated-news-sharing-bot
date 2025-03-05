@@ -20,6 +20,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -34,7 +35,8 @@ import java.util.Base64;
 import java.awt.image.BufferedImage;
 import java.awt.Font;
 import java.awt.Color;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import com.egemen.TweetBotTelegram.service.GeminiService;
 
 @Slf4j
 @Service
@@ -47,6 +49,7 @@ public class InstagramApiServiceImpl implements InstagramApiService {
     private final S3Service s3Service;
     private final PexelsService pexelsService;
     private final ImageProcessingService imageProcessingService;
+    private final GeminiService geminiService;
     private static final String API_URL = "https://graph.instagram.com/v12.0";
 
     @Autowired
@@ -56,7 +59,8 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             InstagramPostRepository instagramPostRepository,
             S3Service s3Service,
             PexelsService pexelsService,
-            ImageProcessingService imageProcessingService) {
+            ImageProcessingService imageProcessingService,
+            GeminiService geminiService) {
         this.accessToken = instagramAccessToken;
         this.userId = instagramUserId;
         this.restTemplate = new RestTemplate();
@@ -64,6 +68,7 @@ public class InstagramApiServiceImpl implements InstagramApiService {
         this.s3Service = s3Service;
         this.pexelsService = pexelsService;
         this.imageProcessingService = imageProcessingService;
+        this.geminiService = geminiService;
         log.info("InstagramApiServiceImpl initialized with access token and user ID");
     }
 
@@ -106,11 +111,34 @@ public class InstagramApiServiceImpl implements InstagramApiService {
                 post.setImageUrl(imageUrl);
             }
 
-            // Create an image with text overlay
+            // Generate two different summaries
+            String imageText = geminiService.generateDetailedSummary(
+                post.getTitle(), 
+                post.getContent() != null ? post.getContent() : post.getTitle(),
+                400  // Longer summary for image
+            );
+
+            if (imageText == null) {
+                // If Gemini fails, use the original content
+                imageText = post.getTitle() + "\n\n" + 
+                    (post.getContent() != null ? post.getContent() : "");
+            }
+
+            String captionText = geminiService.generateShortSummary(
+                post.getTitle(),
+                150  // Shorter for caption
+            );
+
+            if (captionText == null) {
+                // If Gemini fails, use a shortened version of the title
+                captionText = StringUtils.abbreviate(post.getTitle(), 150);
+            }
+
+            // Create image with detailed text
             File processedImageFile = imageProcessingService.createNewsImageWithText(
                 imageUrl,
-                post.getTitle() != null ? post.getTitle() : "",
-                post.getCaption() != null ? post.getCaption() : ""
+                post.getTitle(),
+                imageText  // Use detailed summary on image
             );
             
             if (processedImageFile == null) {
@@ -118,13 +146,21 @@ public class InstagramApiServiceImpl implements InstagramApiService {
                 return false;
             }
 
+            // Use shorter text for Instagram caption
+            String finalCaption = captionText + 
+                (post.getUrl() != null ? "\n\nRead more: " + post.getUrl() : "") + 
+                "\n\n#tech #technology #technews #innovation";
+
             try {
                 // Create the container
-                String containerId = createMediaContainer(processedImageFile, post.getCaption());
+                String containerId = createMediaContainer(processedImageFile, finalCaption);
                 if (containerId == null) {
                     saveFailedPost(post, "Failed to create media container");
                     return false;
                 }
+
+                // Wait for container to be ready
+                Thread.sleep(5000);
 
                 // Publish the container
                 String mediaId = publishMediaContainer(containerId);

@@ -62,76 +62,53 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
     }
 
     @Override
-    public BufferedImage addTextToImage(BufferedImage sourceImage, String title, String subtitle) {
+    public BufferedImage addTextToImage(BufferedImage sourceImage, String title, String content) {
+        // Add null checks for title and content
+        if (title == null || title.trim().isEmpty()) {
+            title = "No title available";
+        }
+        if (content == null || content.trim().isEmpty()) {
+            content = "No content available";
+        }
+
         int width = sourceImage.getWidth();
         int height = sourceImage.getHeight();
         
-        // Create a new image with the same dimensions
+        // Create a new image
         BufferedImage resultImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2d = resultImage.createGraphics();
         
-        // Enable anti-aliasing for smoother text
+        // Enable anti-aliasing
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         
-        // Draw the original image
+        // Draw original image
         g2d.drawImage(sourceImage, 0, 0, null);
         
-        // Add semi-transparent overlay for entire image
-        g2d.setColor(new Color(0, 0, 0, 160)); // More transparent overlay
+        // Add semi-transparent overlay
+        g2d.setColor(new Color(0, 0, 0, 180));
         g2d.fillRect(0, 0, width, height);
         
-        // Add logo at the top
-        Font logoFont = new Font("Arial", Font.BOLD, 48); // Larger logo
+        // Draw logo
+        Font logoFont = new Font("Arial", Font.BOLD, 48);
         g2d.setFont(logoFont);
         g2d.setColor(ACCENT_COLOR);
+        drawCenteredString(g2d, LOGO_TEXT, width / 2, PADDING + 48);
         
-        FontMetrics logoMetrics = g2d.getFontMetrics(logoFont);
-        int logoX = (width - logoMetrics.stringWidth(LOGO_TEXT)) / 2;
-        int logoY = PADDING + logoMetrics.getAscent();
-        
-        g2d.drawString(LOGO_TEXT, logoX, logoY);
-        
-        // Calculate center area for main content
-        int contentStartY = height / 4; // Start content from 1/4 of the height
-        int contentHeight = height / 2; // Use middle 1/2 for content
-        
-        // Draw title text in the center
-        if (title != null && !title.isEmpty()) {
-            Font titleFont = new Font("Arial", Font.BOLD, 42);
-            String processedTitle = StringUtils.abbreviate(title, 200);
-            drawWrappedText(g2d, processedTitle, titleFont, TEXT_COLOR, PADDING, contentStartY, TITLE_MAX_WIDTH);
-        }
-        
-        // Draw detailed content below title
-        if (subtitle != null && !subtitle.isEmpty()) {
-            Font contentFont = new Font("Arial", Font.PLAIN, 32);
-            String processedContent = StringUtils.abbreviate(subtitle, 400);
-            int contentY = contentStartY + height / 4;
-            drawWrappedText(g2d, processedContent, contentFont, TEXT_COLOR, PADDING, contentY, TITLE_MAX_WIDTH);
-        }
-        
-        // Add "READ MORE" button at the bottom
-        Font readMoreFont = new Font("Arial", Font.BOLD, 28);
-        g2d.setFont(readMoreFont);
-        String readMoreText = "READ MORE";
-        
-        // Create button-like background
-        FontMetrics readMoreMetrics = g2d.getFontMetrics(readMoreFont);
-        int readMoreWidth = readMoreMetrics.stringWidth(readMoreText) + 60;
-        int readMoreHeight = readMoreMetrics.getHeight() + 20;
-        int readMoreX = width - readMoreWidth - PADDING;
-        int readMoreY = height - readMoreHeight - PADDING;
-        
-        // Draw button with rounded corners
-        g2d.setColor(ACCENT_COLOR);
-        g2d.fillRoundRect(readMoreX, readMoreY, readMoreWidth, readMoreHeight, 15, 15);
-        
-        // Draw READ MORE text
+        // Draw title
+        Font titleFont = new Font("Arial", Font.BOLD, 36);
+        g2d.setFont(titleFont);
         g2d.setColor(TEXT_COLOR);
-        int textX = readMoreX + (readMoreWidth - readMoreMetrics.stringWidth(readMoreText)) / 2;
-        int textY = readMoreY + ((readMoreHeight + readMoreMetrics.getAscent()) / 2);
-        g2d.drawString(readMoreText, textX, textY);
+        int titleY = height / 4;
+        drawWrappedText(g2d, title, titleFont, TEXT_COLOR, PADDING, titleY, width - (PADDING * 2));
+        
+        // Draw content
+        if (content != null && !content.isEmpty()) {
+            Font contentFont = new Font("Arial", Font.PLAIN, 28);
+            g2d.setFont(contentFont);
+            int contentY = height / 2;
+            drawWrappedText(g2d, content, contentFont, TEXT_COLOR, PADDING, contentY, width - (PADDING * 2));
+        }
         
         g2d.dispose();
         return resultImage;
@@ -208,26 +185,43 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
     }
     
     private void drawWrappedText(Graphics2D g2d, String text, Font font, Color color, int x, int y, int maxWidth) {
-        g2d.setFont(font);
-        g2d.setColor(color);
-        
-        // Create attributed string for text wrapping
-        AttributedString attributedText = new AttributedString(text);
-        attributedText.addAttribute(TextAttribute.FONT, font);
-        
-        // Get font metrics
-        FontRenderContext frc = g2d.getFontRenderContext();
-        LineBreakMeasurer measurer = new LineBreakMeasurer(attributedText.getIterator(), frc);
-        
-        int currentY = y;
-        measurer.setPosition(0);
-        
-        // Draw each line of text
-        while (measurer.getPosition() < text.length()) {
-            TextLayout layout = measurer.nextLayout(maxWidth);
-            currentY += layout.getAscent();
-            layout.draw(g2d, x, currentY);
-            currentY += layout.getDescent() + layout.getLeading();
+        // Add null check for text
+        if (text == null || text.trim().isEmpty()) {
+            log.warn("Received null or empty text for drawing");
+            text = "No content available";
+        }
+
+        try {
+            // Create attributed string
+            AttributedString attributedText = new AttributedString(text);
+            attributedText.addAttribute(TextAttribute.FONT, font);
+            attributedText.addAttribute(TextAttribute.FOREGROUND, color);
+
+            // Get line break measurer
+            FontRenderContext frc = g2d.getFontRenderContext();
+            LineBreakMeasurer measurer = new LineBreakMeasurer(
+                attributedText.getIterator(),
+                frc
+            );
+
+            // Set position
+            int currentY = y;
+            measurer.setPosition(0);
+
+            // Draw each line
+            while (measurer.getPosition() < text.length()) {
+                TextLayout layout = measurer.nextLayout(maxWidth);
+                currentY += layout.getAscent();
+                float dx = x + (maxWidth - layout.getAdvance()) / 2; // Center the line
+                layout.draw(g2d, dx, currentY);
+                currentY += layout.getDescent() + layout.getLeading();
+            }
+        } catch (Exception e) {
+            log.error("Error drawing wrapped text: {}", e.getMessage());
+            // Draw simple text as fallback
+            g2d.setFont(font);
+            g2d.setColor(color);
+            g2d.drawString(text, x, y + g2d.getFontMetrics().getAscent());
         }
     }
     
@@ -343,5 +337,15 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
         }
         
         return lines.toArray(new String[0]);
+    }
+
+    /**
+     * Draws a string centered at the specified coordinates
+     */
+    private void drawCenteredString(Graphics2D g2d, String text, int centerX, int centerY) {
+        FontMetrics metrics = g2d.getFontMetrics();
+        int x = centerX - (metrics.stringWidth(text) / 2);
+        int y = centerY - (metrics.getHeight() / 2) + metrics.getAscent();
+        g2d.drawString(text, x, y);
     }
 } 

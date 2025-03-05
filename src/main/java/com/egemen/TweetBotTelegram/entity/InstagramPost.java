@@ -49,4 +49,8 @@ public class InstagramPost {
 
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
+
+    private String content;
+
+    private String url;
 }

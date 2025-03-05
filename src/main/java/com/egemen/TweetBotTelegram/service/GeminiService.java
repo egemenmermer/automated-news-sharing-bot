@@ -8,4 +8,7 @@ public interface GeminiService {
     String generateResponse(String prompt) throws Exception;
     String generateImageForNews(News news) throws Exception;
     String generateInstagramCaption(News news) throws Exception;
+    
+    String generateDetailedSummary(String title, String content, int maxLength);
+    String generateShortSummary(String title, int maxLength);
 }

@@ -285,18 +285,12 @@ public class NewsServiceImpl implements NewsService {
 
     @Override
     @Transactional
-    public void updateNewsStatus(Long id, NewsStatus status) {
-        log.info("Updating news status for ID: {} to: {}", id, status);
-        
-        Optional<News> optionalNews = newsRepository.findById(id);
-        if (optionalNews.isPresent()) {
-            News news = optionalNews.get();
-            news.setStatus(status);
-            newsRepository.save(news);
-            log.info("Updated news status for: {}", news.getTitle());
-        } else {
-            log.warn("News not found with ID: {}", id);
-        }
+    public void updateNewsStatus(Long newsId, NewsStatus status) {
+        News news = newsRepository.findById(newsId)
+            .orElseThrow(() -> new RuntimeException("News not found with id: " + newsId));
+        news.setStatus(status);
+        newsRepository.save(news);
+        log.info("Updated news status to {} for news id: {}", status, newsId);
     }
 
     @Override

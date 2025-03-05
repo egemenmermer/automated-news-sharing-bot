@@ -1020,64 +1020,33 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private void postOneArticle(long chatId, Bot bot) {
+    private void postOneArticle(News news, Bot bot) {
         try {
-            // Get one pending news article
-            List<News> pendingNews = newsService.getPendingNews(bot, 1);
-            
-            if (pendingNews.isEmpty()) {
-                sendMessage(chatId, "No pending news articles found for posting.");
-                return;
+            // Create Instagram post
+            InstagramPost instagramPost = new InstagramPost();
+            instagramPost.setBot(bot);
+            instagramPost.setNews(news);
+            instagramPost.setTitle(news.getTitle());
+            instagramPost.setContent(news.getContent());
+            instagramPost.setUrl(news.getUrl());
+            instagramPost.setImageUrl(news.getImageUrl());
+            instagramPost.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+            instagramPost.setPostStatus(PostStatus.PENDING);
+
+            boolean posted = instagramApiService.createPost(instagramPost);
+
+            if (posted) {
+                // Update news status to POSTED after successful Instagram post
+                newsService.updateNewsStatus(news.getId(), NewsStatus.POSTED);
+                log.info("Successfully posted article from bot {}: {}", bot.getName(), news.getTitle());
+            } else {
+                log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
+                // Optionally update to FAILED status if needed
+                newsService.updateNewsStatus(news.getId(), NewsStatus.FAILED);
             }
-            
-            News news = pendingNews.get(0);
-            
-            try {
-                // Mark the news as IN_PROGRESS to prevent duplicate processing
-                newsService.updateNewsStatus(news.getId(), NewsStatus.IN_PROGRESS);
-                
-                // Try to post to Instagram
-                String caption = news.getTitle();
-                if (caption.length() > 100) {
-                    caption = caption.substring(0, 97) + "...";
-                }
-                
-                // Add hashtags
-                String[] keywords = news.getTitle().split(" ");
-                List<String> hashtags = new ArrayList<>();
-                for (String keyword : keywords) {
-                    if (keyword.length() > 3 && !isCommonWord(keyword)) {
-                        hashtags.add("#" + keyword.replaceAll("[^a-zA-Z0-9]", ""));
-                    }
-                    if (hashtags.size() >= 5) break;
-                }
-                
-                caption = caption + " " + String.join(" ", hashtags);
-                
-                // Create and post
-                String mediaId = instagramApiService.createPostFromNews(caption, news.getImageUrl());
-                
-                if (mediaId != null) {
-                    // Successfully posted
-                    newsService.markNewsAsPosted(news.getId());
-                    sendMessage(chatId, "Posted article to Instagram: " + news.getTitle());
-                } else {
-                    // Failed to post
-                    newsService.markNewsAsFailed(news.getId());
-                    sendMessage(chatId, "Failed to post article: " + news.getTitle());
-                    log.error("Failed to post article from bot {}: {}", bot.getName(), news.getTitle());
-                }
-                
-            } catch (Exception e) {
-                // Make sure to mark as failed if there's an exception
-                newsService.markNewsAsFailed(news.getId());
-                log.error("Error posting article: {} - {}", news.getTitle(), e.getMessage(), e);
-                sendMessage(chatId, "Error posting article: " + e.getMessage());
-            }
-            
         } catch (Exception e) {
-            log.error("Error in postOneArticle: {}", e.getMessage(), e);
-            sendMessage(chatId, "Error processing article: " + e.getMessage());
+            log.error("Error posting article: {}", e.getMessage(), e);
+            newsService.updateNewsStatus(news.getId(), NewsStatus.FAILED);
         }
     }
 
