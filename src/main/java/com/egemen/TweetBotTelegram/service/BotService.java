@@ -10,12 +10,12 @@ import java.util.Optional;
  * retrieving, and deleting bots.
  */
 public interface BotService {
-    Bot createBot(Bot bot);
-    List<Bot> listBots();
-    void saveBot(Bot bot);
+    Bot saveBot(Bot bot);
+    Bot getBotById(Long id);
     Bot getBotByName(String name);
-    Bot getBotById(Long botId);
-    void deleteBot(Long botId);
-    Bot updateBot(Bot bot);
+    List<Bot> listBots();
+    void deleteBot(Long id);
     Optional<Bot> getBot(Long id);
+    Bot createBot(Bot bot);
+    Bot updateBot(Bot bot);
 }

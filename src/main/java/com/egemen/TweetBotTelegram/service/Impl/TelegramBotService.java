@@ -248,33 +248,19 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void sendWelcomeMessage(long chatId) {
+        String welcomeText = "Welcome to Neural News Bot! \n\n" +
+                "I can help you manage your news posting automation.\n\n" +
+                "Please select an option from the menu below:";
+
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(welcomeText);
+        message.setReplyMarkup(getMainMenuKeyboard());
+
         try {
-            List<Bot> bots = botService.listBots();
-            
-            InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
-            List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
-            
-            // First row
-            List<InlineKeyboardButton> row1 = new ArrayList<>();
-            if (bots.isEmpty()) {
-                row1.add(createInlineButton("➕ Create Bot", "create_bot"));
-            } else {
-                row1.add(createInlineButton("⚙️ Configure Bot", "config_bot"));
-                row1.add(createInlineButton("📝 Post News", "post_news"));
-            }
-            rowsInline.add(row1);
-            
-            markupInline.setKeyboard(rowsInline);
-
-            SendMessage message = new SendMessage();
-            message.setChatId(String.valueOf(chatId));
-            message.setText("Welcome to Neural News Bot! What would you like to do?");
-            message.setReplyMarkup(markupInline);
-
             execute(message);
-        } catch (Exception e) {
-            log.error("Error sending welcome message: {}", e.getMessage());
-            sendMessage(chatId, "Error showing menu. Please try again.");
+        } catch (TelegramApiException e) {
+            log.error("Error sending welcome message: ", e);
         }
     }
 
@@ -347,13 +333,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
         return button;
     }
 
-    private InlineKeyboardButton createInlineButton(String text, String callbackData) {
-        InlineKeyboardButton button = new InlineKeyboardButton();
-        button.setText(text);
-        button.setCallbackData(callbackData);
-        return button;
-    }
-
     public void onUpdateReceived(Update update) {
         try {
             if (update.hasMessage() && update.getMessage().hasText()) {
@@ -378,7 +357,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     
                     switch (currentState) {
                         case "WAITING_BOT_NAME":
-                            createNewBot(chatId, messageText.trim());
+                            createBot(chatId, messageText.trim());
                             break;
                         case "WAITING_TOPIC":
                             saveBotConfig(chatId, "topic", messageText.trim());
@@ -504,8 +483,17 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 } catch (NumberFormatException e) {
                     log.error("Invalid bot ID format: {}", botIdStr);
                 }
+            } else if (callbackData.startsWith("stop_schedule_")) {
+                String botIdStr = callbackData.substring("stop_schedule_".length());
+                try {
+                    Long botId = Long.parseLong(botIdStr);
+                    stopBotScheduler(chatId, botId);
+                    return;
+                } catch (NumberFormatException e) {
+                    log.error("Invalid bot ID format: {}", botIdStr);
+                }
             }
-
+            
             // Handle standard menu actions
             switch (callbackData) {
                 case "add_bot":
@@ -544,6 +532,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 case "set_schedule":
                     handleSetSchedule(chatId);
                     break;
+                case "schedule":
+                    handleScheduleBot(chatId);
+                    break;
+                case "stop_schedule":
+                    handleStopSchedule(chatId);
+                    break;
                 default:
                     sendMessage(chatId, "Unknown command. Please try again.");
             }
@@ -554,16 +548,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void showConfigMenu(long chatId) {
-        List<Bot> bots = botService.listBots();
-        if (bots.isEmpty()) {
-            sendMessage(chatId, "Please create a bot first.");
-            return;
-        }
-
-        // Get the first bot (or let user select if multiple)
-        Bot bot = bots.get(0);
-        userBots.put(chatId, bot); // Store the selected bot for this user
-
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText("⚙️ Configuration Menu\n\nPlease select what you want to configure:");
@@ -889,68 +873,100 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private void createNewBot(long chatId, String botName) {
+    private void createBot(long chatId, String botName) {
         try {
-            // Check if bot with this name already exists
-            if (botService.getBotByName(botName) != null) {
-                sendMessage(chatId, "A bot with this name already exists. Please choose a different name.");
-                return;
-            }
-
-            // Create new bot
-            Bot newBot = new Bot();
-            newBot.setName(botName);
-            newBot.setFetchTime(LocalDateTime.now().toString());
-            newBot.setPostTime(LocalDateTime.now().toString());
-            newBot.setLastRun(Timestamp.valueOf(LocalDateTime.now()));
+            log.info("Creating new bot with name: {}", botName);
             
-            // Save the bot
-            Bot savedBot = botService.createBot(newBot);
+            // Create and save the bot
+            Bot bot = new Bot();
+            bot.setName(botName);
+            bot.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+            bot.setLastRun(new Timestamp(System.currentTimeMillis()));
+            bot.setFetchTime("0 */30 * * * *"); // Default to every 30 minutes
+            bot.setPostTime("0 0 */1 * * *");   // Default to every hour
             
-            // Initialize default configurations
+            Bot savedBot = botService.saveBot(bot);
+            log.info("Bot saved with ID: {}", savedBot.getId());
+            
+            // Create default configurations
             BotConfig topicConfig = new BotConfig();
             topicConfig.setBot(savedBot);
             topicConfig.setConfigType(ConfigType.TOPIC);
             topicConfig.setConfigValue("technology");
-            topicConfig.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+            topicConfig.setCreatedAt(new Timestamp(System.currentTimeMillis()));
             botConfigurationRepository.save(topicConfig);
 
             BotConfig fetchAmountConfig = new BotConfig();
             fetchAmountConfig.setBot(savedBot);
             fetchAmountConfig.setConfigType(ConfigType.FETCH_AMOUNT);
             fetchAmountConfig.setConfigValue("10");
-            fetchAmountConfig.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+            fetchAmountConfig.setCreatedAt(new Timestamp(System.currentTimeMillis()));
             botConfigurationRepository.save(fetchAmountConfig);
 
             BotConfig maxRetriesConfig = new BotConfig();
             maxRetriesConfig.setBot(savedBot);
             maxRetriesConfig.setConfigType(ConfigType.MAX_RETRIES);
             maxRetriesConfig.setConfigValue("3");
-            maxRetriesConfig.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+            maxRetriesConfig.setCreatedAt(new Timestamp(System.currentTimeMillis()));
             botConfigurationRepository.save(maxRetriesConfig);
 
             BotConfig scheduleConfig = new BotConfig();
             scheduleConfig.setBot(savedBot);
             scheduleConfig.setConfigType(ConfigType.SCHEDULE_MINUTES);
             scheduleConfig.setConfigValue("30");
-            scheduleConfig.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+            scheduleConfig.setCreatedAt(new Timestamp(System.currentTimeMillis()));
             botConfigurationRepository.save(scheduleConfig);
             
-            // Start the bot's scheduler
-            int defaultInterval = 30; // Default interval in minutes
-            startBotScheduler(savedBot, defaultInterval);
+            // Store the bot in userBots map
+            userBots.put(chatId, savedBot);
             
             // Clear the user state
             userStates.remove(chatId);
             
-            // Send success message and show config menu
             sendMessage(chatId, String.format("✅ Bot '%s' created successfully! Now let's configure it.", botName));
             showConfigMenu(chatId);
             
         } catch (Exception e) {
-            log.error("Error creating bot: {}", e.getMessage());
-            sendMessage(chatId, "Error creating bot. Please try again.");
+            log.error("Error creating bot: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error creating bot: " + e.getMessage());
             userStates.remove(chatId);
+        }
+    }
+
+    private void handleConfigMenuCallback(long chatId, String callbackData) {
+        try {
+            // Get the current bot for this user
+            Bot currentBot = userBots.get(chatId);
+            if (currentBot == null) {
+                sendMessage(chatId, "⚠️ No bot selected. Please create or select a bot first.");
+                showMainMenu(chatId);
+                return;
+            }
+
+            switch (callbackData) {
+                case "set_topic":
+                    userStates.put(chatId, "waiting_for_topic");
+                    sendMessage(chatId, "Please enter the topic for news fetching (e.g., technology, sports, business):");
+                    break;
+                case "set_fetch_amount":
+                    userStates.put(chatId, "waiting_for_fetch_amount");
+                    sendMessage(chatId, "Please enter the number of articles to fetch (1-50):");
+                    break;
+                case "set_schedule":
+                    userStates.put(chatId, "waiting_for_schedule");
+                    sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 30 for every 30 minutes):");
+                    break;
+                case "back_to_main":
+                    userStates.remove(chatId);
+                    showMainMenu(chatId);
+                    break;
+                default:
+                    sendMessage(chatId, "Invalid option selected.");
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("Error handling config menu callback: {}", e.getMessage(), e);
+            sendMessage(chatId, "Error processing configuration. Please try again.");
         }
     }
 
@@ -991,7 +1007,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 config.setBot(bot);
                 config.setConfigType(type);
                 config.setConfigValue(value);
-                config.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+                config.setCreatedAt(new Timestamp(System.currentTimeMillis()));
             }
 
             botConfigurationRepository.save(config);
@@ -1069,5 +1085,39 @@ public class TelegramBotService extends TelegramLongPollingBot {
             }
         }
         return false;
+    }
+
+    private void showMainMenu(long chatId) {
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+
+        // Create bot button
+        List<InlineKeyboardButton> row1 = new ArrayList<>();
+        InlineKeyboardButton createBotButton = new InlineKeyboardButton();
+        createBotButton.setText("Create New Bot");
+        createBotButton.setCallbackData("create_bot");
+        row1.add(createBotButton);
+        keyboard.add(row1);
+
+        // Configure bot button
+        List<InlineKeyboardButton> row2 = new ArrayList<>();
+        InlineKeyboardButton configBotButton = new InlineKeyboardButton();
+        configBotButton.setText("Configure Bot");
+        configBotButton.setCallbackData("configure_bot");
+        row2.add(configBotButton);
+        keyboard.add(row2);
+
+        markup.setKeyboard(keyboard);
+
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Welcome to Neural News Bot! What would you like to do?");
+        message.setReplyMarkup(markup);
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            log.error("Error showing main menu: {}", e.getMessage(), e);
+        }
     }
 }

@@ -22,6 +22,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
+@Transactional
 public class BotServiceImpl implements BotService {
 
     @PersistenceContext
@@ -64,8 +65,6 @@ public class BotServiceImpl implements BotService {
             return botRepository.save(bot);
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(e, HttpStatus.BAD_REQUEST);
-        } catch(Exception e) {
-            throw new CustomException(new Exception("Error creating bot: " + e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -87,48 +86,29 @@ public class BotServiceImpl implements BotService {
     @Transactional(readOnly = true, propagation = Propagation.SUPPORTS)
     public List<Bot> listBots() {
         log.info("Listing all bots");
-        List<Bot> bots = botRepository.findAll();
-        if(bots.isEmpty()) {
-            throw new CustomException(new Exception("No Bots found"), HttpStatus.NOT_FOUND);
-        }
-        return bots;
+        return botRepository.findAll();
     }
 
     @Override
-    public void saveBot(Bot bot) {
-        try {
-            botRepository.save(bot);
-        } catch (Exception e) {
-            throw new CustomException(e, HttpStatus.BAD_REQUEST);
-        }
+    public Bot saveBot(Bot bot) {
+        return botRepository.save(bot);
     }
 
     @Override
     public Bot getBotByName(String name) {
         return botRepository.findByName(name)
-                .orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
+            .orElse(null);
     }
 
     @Override
-    public Bot getBotById(Long botId) {
-        return botRepository.findById(botId)
-                .orElseThrow(() -> new CustomException(new Exception("Bot not found"), HttpStatus.NOT_FOUND));
+    public Bot getBotById(Long id) {
+        return botRepository.findById(id)
+            .orElse(null);
     }
 
     @Override
     @Transactional
-    public void deleteBot(Long botId) {
-        try {
-            Bot bot = getBotById(botId);
-            // Log the deletion attempt
-            log.info("Deleting bot: {}", bot.getName());
-            
-            // Delete the bot
-            botRepository.deleteById(botId);
-            log.info("Bot deleted successfully: {}", botId);
-        } catch (Exception e) {
-            log.error("Error deleting bot with ID {}: {}", botId, e.getMessage());
-            throw new RuntimeException("Failed to delete bot: " + e.getMessage(), e);
-        }
+    public void deleteBot(Long id) {
+        botRepository.deleteById(id);
     }
 }

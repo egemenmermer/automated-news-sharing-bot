@@ -42,7 +42,7 @@ public class GeminiServiceImpl implements GeminiService {
                 "Content: " + content;
         
         try {
-            return generateResponse(prompt);
+        return generateResponse(prompt);
         } catch (Exception e) {
             log.warn("Error generating image prompt with Gemini API, using fallback: {}", e.getMessage());
             // Fallback: Generate a simple image prompt based on the title
@@ -58,7 +58,7 @@ public class GeminiServiceImpl implements GeminiService {
                 "Content: " + content;
         
         try {
-            return generateResponse(prompt);
+        return generateResponse(prompt);
         } catch (Exception e) {
             log.warn("Error generating summary with Gemini API, using fallback: {}", e.getMessage());
             // Fallback: Generate a simple summary based on the title
@@ -114,18 +114,18 @@ public class GeminiServiceImpl implements GeminiService {
         long[] retryDelays = {5000, 10000, 20000}; // 5s, 10s, 20s delays
         
         while (retryCount <= maxRetries) {
-            try {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                
-                Map<String, Object> requestBody = new HashMap<>();
+                try {
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+
+                    Map<String, Object> requestBody = new HashMap<>();
                 Map<String, Object> content = new HashMap<>();
                 Map<String, Object> part = new HashMap<>();
                 part.put("text", prompt);
                 content.put("parts", List.of(part));
                 requestBody.put("contents", List.of(content));
-                
-                HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+                    
+                    HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
                 
                 String url = GEMINI_API_URL + "?key=" + apiKey;
                 ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
@@ -159,7 +159,7 @@ public class GeminiServiceImpl implements GeminiService {
                         retryDelay, retryCount, maxRetries);
                     
                     try {
-                        Thread.sleep(retryDelay);
+                            Thread.sleep(retryDelay);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         return getFallbackResponse(prompt);

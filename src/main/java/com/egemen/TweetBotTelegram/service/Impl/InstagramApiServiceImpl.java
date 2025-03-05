@@ -109,16 +109,21 @@ public class InstagramApiServiceImpl implements InstagramApiService {
             }
 
             // Generate image text using the actual title and content
-            String imageText = post.getTitle();
+            String imageText = "";
             if (post.getContent() != null && !post.getContent().trim().isEmpty()) {
-                imageText += "\n\n" + post.getContent();
+                // Take first 500 characters of content to ensure readability
+                imageText = post.getContent().length() > 500 ? 
+                    post.getContent().substring(0, 500).trim() + "..." : 
+                    post.getContent();
+            } else {
+                imageText = post.getTitle();
             }
 
             // Create image with text
             File processedImageFile = imageProcessingService.createNewsImageWithText(
                 imageUrl,
-                post.getTitle(),  // Still pass title for fallback
-                post.getContent() != null ? post.getContent() : post.getTitle() // Use content as main text
+                post.getTitle(),
+                imageText
             );
             
             if (processedImageFile == null) {

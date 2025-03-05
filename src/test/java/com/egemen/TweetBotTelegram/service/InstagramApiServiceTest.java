@@ -21,10 +21,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-class InstagramApiServiceTest {
-
-    private InstagramApiService instagramApiService;
+@ExtendWith(MockitoExtension.class)
+public class InstagramApiServiceTest {
 
     @Mock
     private InstagramPostRepository instagramPostRepository;
@@ -37,7 +38,12 @@ class InstagramApiServiceTest {
     
     @Mock
     private ImageProcessingService imageProcessingService;
-
+    
+    @Mock
+    private GeminiService geminiService;
+    
+    private InstagramApiService instagramApiService;
+    
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -48,7 +54,9 @@ class InstagramApiServiceTest {
                 instagramPostRepository,
                 s3Service,
                 pexelsService,
-                imageProcessingService);
+                imageProcessingService,
+                geminiService
+        );
     }
 
     @Test

@@ -20,6 +20,9 @@ public class Bot {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "created_at")
+    private Timestamp createdAt;
+
     private String telegramBotUsername;
     
     private String telegramBotToken;
@@ -39,10 +42,13 @@ public class Bot {
     
     private String geminiApiKey;
     
+    @Column(name = "fetch_time")
     private String fetchTime;
     
+    @Column(name = "post_time")
     private String postTime;
     
+    @Column(name = "last_run")
     private Timestamp lastRun;
 
     // Temporarily commenting out is_active field due to database schema mismatch

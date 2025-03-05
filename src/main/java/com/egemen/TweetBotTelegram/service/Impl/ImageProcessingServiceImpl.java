@@ -174,13 +174,17 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
     }
     
     private void drawWrappedText(Graphics2D g2d, String text, Font font, Color color, int x, int y, int maxWidth) {
-        // Add null check for text
         if (text == null || text.trim().isEmpty()) {
             log.warn("Received null or empty text for drawing");
             text = "No content available";
         }
 
         try {
+            // Limit text length if too long
+            if (text.length() > 1000) {
+                text = text.substring(0, 1000) + "...";
+            }
+
             // Create attributed string
             AttributedString attributedText = new AttributedString(text);
             attributedText.addAttribute(TextAttribute.FONT, font);
@@ -210,7 +214,7 @@ public class ImageProcessingServiceImpl implements ImageProcessingService {
             // Draw simple text as fallback
             g2d.setFont(font);
             g2d.setColor(color);
-            g2d.drawString(text, x, y + g2d.getFontMetrics().getAscent());
+            g2d.drawString(StringUtils.abbreviate(text, 100), x, y + g2d.getFontMetrics().getAscent());
         }
     }
     
