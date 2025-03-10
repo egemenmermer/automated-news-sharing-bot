@@ -11,7 +11,7 @@ An automated backend service that fetches news from **MediaStack**, summarizes i
 ✅ Retrieves **free images** from **Pexels API**  
 ✅ Overlays news headlines on images using **Java Graphics2D (G2D)**  
 ✅ Uploads images to **AWS S3** for public access  
-✅ Posts images to **Instagram** via **Meta Graph API**  
+✅ Posts images to **Instagram** via **Instagram4j**  
 ✅ Telegram Bot integration for bot status, manual posting, and logs  
 
 ---
@@ -19,14 +19,15 @@ An automated backend service that fetches news from **MediaStack**, summarizes i
 ## 🛠️ Tech Stack
 
 - **Backend:** Java (Spring Boot)  
+- **Database:** PostgreSQL
 - **News API:** MediaStack  
 - **Summarization:** Google Gemini API  
 - **Image Source:** Pexels API  
 - **Image Processing:** Java Graphics2D (G2D)  
 - **Storage:** AWS S3  
 - **Automation & Scheduling:** Spring Scheduler  
-- **Bot Control:** Telegram Bot (python-telegram-bot)  
-- **Deployment:** Docker (optional)  
+- **Bot Control:** Telegram Bot API  
+- **Deployment:** Docker  
 
 ---
 
@@ -34,45 +35,57 @@ An automated backend service that fetches news from **MediaStack**, summarizes i
 
 ### 1️⃣ Clone the Repository
 ```bash
-git clone https://github.com/your-username/neural-news.git
-cd neural-news
+git clone https://github.com/your-username/news-bot.git
+cd news-bot
 ```
 
 ### 2️⃣ Set Up Environment Variables
 Create a `.env` file and add your credentials:
 ```ini
-# AWS S3
+# Database
+DB_URL=jdbc:postgresql://localhost:5432/tweetbot
+DB_USERNAME=your_db_username
+DB_PASSWORD=your_db_password
+
+# AWS Configuration
 AWS_ACCESS_KEY=your_aws_access_key
 AWS_SECRET_KEY=your_aws_secret_key
-AWS_REGION=your_region
+AWS_REGION=eu-north-1
 AWS_S3_BUCKET=your_bucket_name
 
-# MediaStack API
-MEDIASTACK_API_KEY=your_mediastack_api_key
-
-# Google Gemini API
-GEMINI_API_KEY=your_gemini_api_key
-
-# Pexels API
+# API Keys
 PEXELS_API_KEY=your_pexels_api_key
-
-# Instagram API
+INSTAGRAM_USERID=your_instagram_userid
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token
-INSTAGRAM_BUSINESS_ID=your_instagram_business_id
+MEDIASTACK_API_KEY=your_mediastack_api_key
+GEMINI_API_KEY=your_gemini_api_key
+HUGGINGFACE_API_KEY=your_huggingface_api_key
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_BOT_TOKEN=your_bot_token
 
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-TELEGRAM_CHAT_ID=your_telegram_chat_id
+# Optional Configuration
+APP_SCHEDULER_FETCH_NEWS_RATE=300000
+APP_SCHEDULER_POST_RATE=600000
+
+# Instagram Configuration
+INSTAGRAM_USERNAME=your_instagram_username
+INSTAGRAM_PASSWORD=your_instagram_password
 ```
 
-### 3️⃣ Install Dependencies
+### 3️⃣ Database Setup
 ```bash
-mvn clean install
+# Start PostgreSQL using Docker
+docker-compose up -d
 ```
 
-### 4️⃣ Run the Application
+### 4️⃣ Install Dependencies
 ```bash
-mvn spring-boot:run
+./mvnw clean install
+```
+
+### 5️⃣ Run the Application
+```bash
+./mvnw spring-boot:run
 ```
 
 ---
@@ -100,5 +113,14 @@ mvn spring-boot:run
 | `/post` | Post the latest processed news to Instagram |
 | `/logs` | Retrieve recent logs |
 
+---
+
+## 🔧 Configuration
+
+- News fetch interval: 5 minutes (300000ms)
+- Post interval: 10 minutes (600000ms)
+- Supported image formats: JPEG, PNG
+- Database: PostgreSQL 
+- Java version: 17
 
 ---

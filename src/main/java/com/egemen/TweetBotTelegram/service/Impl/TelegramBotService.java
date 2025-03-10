@@ -455,6 +455,17 @@ public class TelegramBotService extends TelegramLongPollingBot {
         long chatId = callbackQuery.getMessage().getChatId();
 
         try {
+            // Log the callback data for debugging
+            log.info("Handling callback: {} for chat ID: {}", callbackData, chatId);
+            
+            // Handle back_to_main first to ensure it takes priority
+            if (callbackData.equals("back_to_main")) {
+                log.info("Back to main menu requested for chat ID: {}", chatId);
+                userStates.remove(chatId);
+                sendWelcomeMessage(chatId);
+                return;
+            }
+            
             // Handle bot-specific actions (stop_bot_ID, delete_bot_ID, schedule_bot_ID, stop_schedule_ID)
             if (callbackData.startsWith("stop_bot_")) {
                 String botIdStr = callbackData.substring("stop_bot_".length());
@@ -553,7 +564,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
             List<Bot> bots = botService.listBots();
             if (bots.isEmpty()) {
                 sendMessage(chatId, "No bots found. Please create a bot first.");
-                showMainMenu(chatId);
+                sendWelcomeMessage(chatId);
                 return;
             }
 
@@ -626,62 +637,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private String getBotConfig(Bot bot, ConfigType configType, String defaultValue) {
         Optional<BotConfig> config = botConfigurationRepository.findByBotAndConfigType(bot, configType);
         return config.map(BotConfig::getConfigValue).orElse(defaultValue);
-    }
-
-    private void handleCallbackQuery(long chatId, String callbackData) {
-        try {
-            switch (callbackData) {
-                case "create_bot":
-                    userStates.put(chatId, "WAITING_BOT_NAME");
-                    sendMessage(chatId, "Please enter a name for your new bot:");
-                    break;
-                case "configure_bot":
-                    showConfigMenu(chatId);
-                    break;
-                case "post_news":
-                    handlePostNews(chatId);
-                    break;
-                case "back_to_main":
-                    userStates.remove(chatId);
-                    showMainMenu(chatId);
-                    break;
-                case "set_topic":
-                case "set_fetch_amount":
-                case "set_schedule":
-                    handleConfigOption(chatId, callbackData);
-                    break;
-                default:
-                    sendMessage(chatId, "Invalid option selected.");
-                    break;
-            }
-        } catch (Exception e) {
-            log.error("Error handling callback query: {}", e.getMessage(), e);
-            sendMessage(chatId, "Error processing your request. Please try again.");
-        }
-    }
-
-    private void handleConfigOption(long chatId, String option) {
-        Bot currentBot = userBots.get(chatId);
-        if (currentBot == null) {
-            sendMessage(chatId, "⚠️ No bot selected. Please create or select a bot first.");
-            showMainMenu(chatId);
-            return;
-        }
-
-        switch (option) {
-            case "set_topic":
-                userStates.put(chatId, "waiting_for_topic");
-                sendMessage(chatId, "Please enter the topic for news fetching (e.g., technology, sports, business):");
-                break;
-            case "set_fetch_amount":
-                userStates.put(chatId, "waiting_for_fetch_amount");
-                sendMessage(chatId, "Please enter the number of articles to fetch (1-50):");
-                break;
-            case "set_schedule":
-                userStates.put(chatId, "waiting_for_schedule");
-                sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 30 for every 30 minutes):");
-                break;
-        }
     }
 
     private void handleFetchNews(long chatId) {
@@ -1063,9 +1018,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
             Bot currentBot = userBots.get(chatId);
             if (currentBot == null) {
                 sendMessage(chatId, "⚠️ No bot selected. Please create or select a bot first.");
-                showMainMenu(chatId);
+                sendWelcomeMessage(chatId);
                 return;
             }
+
+            // Log the config menu callback for debugging
+            log.info("Handling config menu callback: {} for chat ID: {}", callbackData, chatId);
 
             switch (callbackData) {
                 case "set_topic":
@@ -1081,8 +1039,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     sendMessage(chatId, "Please enter the schedule interval in minutes (e.g., 30 for every 30 minutes):");
                     break;
                 case "back_to_main":
+                    log.info("Back to main menu from config menu for chat ID: {}", chatId);
                     userStates.remove(chatId);
-                    showMainMenu(chatId);
+                    sendWelcomeMessage(chatId);
                     break;
                 default:
                     sendMessage(chatId, "Invalid option selected.");
@@ -1215,7 +1174,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
-        // Create bot button
+        // Create New Bot button
         List<InlineKeyboardButton> row1 = new ArrayList<>();
         InlineKeyboardButton createBotButton = new InlineKeyboardButton();
         createBotButton.setText("Create New Bot");
@@ -1223,7 +1182,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         row1.add(createBotButton);
         keyboard.add(row1);
 
-        // Configure bot button
+        // Configure Bot button
         List<InlineKeyboardButton> row2 = new ArrayList<>();
         InlineKeyboardButton configBotButton = new InlineKeyboardButton();
         configBotButton.setText("Configure Bot");
@@ -1240,6 +1199,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
         try {
             execute(message);
+            log.info("Main menu shown for chat ID: {}", chatId);
         } catch (TelegramApiException e) {
             log.error("Error showing main menu: {}", e.getMessage(), e);
         }
